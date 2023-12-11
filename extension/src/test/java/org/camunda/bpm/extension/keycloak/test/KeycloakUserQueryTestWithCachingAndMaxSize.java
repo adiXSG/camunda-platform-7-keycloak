@@ -1,8 +1,9 @@
 package org.camunda.bpm.extension.keycloak.test;
 
-import junit.extensions.TestSetup;
-import junit.framework.Test;
-import junit.framework.TestSuite;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.identity.User;
 import org.camunda.bpm.engine.identity.UserQuery;
@@ -14,10 +15,9 @@ import org.camunda.bpm.extension.keycloak.test.util.CacheAwareKeycloakIdentityPr
 import org.camunda.bpm.extension.keycloak.test.util.CountingHttpRequestInterceptor;
 import org.camunda.bpm.extension.keycloak.test.util.PredictableTicker;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.stream.Collectors;
+import junit.extensions.TestSetup;
+import junit.framework.Test;
+import junit.framework.TestSuite;
 
 /**
  * User query test for the Keycloak identity provider with caching enabled and max size configured
@@ -28,6 +28,7 @@ public class KeycloakUserQueryTestWithCachingAndMaxSize extends AbstractKeycloak
 		return new TestSetup(new TestSuite(KeycloakUserQueryTestWithCachingAndMaxSize.class)) {
 
 			// @BeforeClass
+			@Override
 			protected void setUp() throws Exception {
 				ProcessEngineConfigurationImpl config = (ProcessEngineConfigurationImpl) ProcessEngineConfiguration
 								.createProcessEngineConfigurationFromResource("camunda.enableCachingAndConfigureMaxCacheSize.cfg.xml");
@@ -36,6 +37,7 @@ public class KeycloakUserQueryTestWithCachingAndMaxSize extends AbstractKeycloak
 			}
 
 			// @AfterClass
+			@Override
 			protected void tearDown() throws Exception {
 				PluggableProcessEngineTestCase.cachedProcessEngine.close();
 				PluggableProcessEngineTestCase.cachedProcessEngine = null;
@@ -133,7 +135,7 @@ public class KeycloakUserQueryTestWithCachingAndMaxSize extends AbstractKeycloak
 						.stream()
 						.map(CacheableKeycloakUserQuery::getFirstName)
 						.sorted()
-						.collect(Collectors.toList());
+						.toList();
 	}
 
 }

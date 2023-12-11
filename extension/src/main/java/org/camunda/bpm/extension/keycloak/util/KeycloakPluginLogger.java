@@ -60,6 +60,15 @@ public class KeycloakPluginLogger extends BaseLogger {
 		logDebug("022", "FIND group with query {}", filter);
 	}
 
+	public void tenantQueryFilter(String filter) {
+		logDebug("023", "FIND tenant with query {}", filter);
+	}
+
+	public void tenantQueryResult(String summary) {
+		// log sensitive data only on FINE
+		logDebug("052", summary);
+	}
+
 	public void groupQueryResult(String summary) {
 		// log sensitive data only on FINE
 		logDebug("050", summary);

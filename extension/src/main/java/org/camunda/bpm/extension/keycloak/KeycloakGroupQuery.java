@@ -3,7 +3,6 @@ package org.camunda.bpm.extension.keycloak;
 import java.util.List;
 
 import org.camunda.bpm.engine.identity.Group;
-import org.camunda.bpm.engine.identity.GroupQuery;
 import org.camunda.bpm.engine.impl.GroupQueryImpl;
 import org.camunda.bpm.engine.impl.Page;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
@@ -40,13 +39,6 @@ public class KeycloakGroupQuery extends GroupQueryImpl {
 
 	protected KeycloakIdentityProviderSession getKeycloakIdentityProvider(CommandContext commandContext) {
 		return (KeycloakIdentityProviderSession) commandContext.getReadOnlyIdentityProvider();
-	}
-
-	// unimplemented features //////////////////////////////////
-
-	@Override
-	public GroupQuery memberOfTenant(String tenantId) {
-		  throw new UnsupportedOperationException("The Keycloak identity provider does currently not support tenant queries.");
 	}
 
 }

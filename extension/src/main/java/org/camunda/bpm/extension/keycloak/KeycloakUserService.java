@@ -2,13 +2,22 @@ package org.camunda.bpm.extension.keycloak;
 
 import static org.camunda.bpm.engine.authorization.Permissions.READ;
 import static org.camunda.bpm.engine.authorization.Resources.USER;
-import static org.camunda.bpm.extension.keycloak.json.JsonUtil.*;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.findFirst;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.getJsonObjectAtIndex;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.getJsonString;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.parseAsJsonArray;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.parseAsJsonObjectAndGetMemberAsString;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import org.camunda.bpm.engine.identity.User;
@@ -110,41 +119,59 @@ public class KeycloakUserService extends KeycloakServiceBase {
 	 * @return list of matching users
 	 */
 	public List<User> requestUsersByGroupId(CacheableKeycloakUserQuery query) {
+
+		String tenantId = query.getTenantId();
 		String groupId = query.getGroupId();
-		List<User> userList = new ArrayList<>();
+
+		List<String> groupsToCheck;
+		try {
+			if (StringUtils.hasLength(tenantId) && StringUtils.hasLength(groupId)) {
+				groupsToCheck = Arrays.asList(getKeycloakTenantID(tenantId), getKeycloakGroupID(groupId));
+			} else if (StringUtils.hasLength(tenantId)) {
+				groupsToCheck = Collections.singletonList(getKeycloakTenantID(tenantId));
+			} else if (StringUtils.hasLength(groupId)) {
+				groupsToCheck = Collections.singletonList(getKeycloakGroupID(groupId));
+			} else {
+				groupsToCheck = Collections.emptyList();
+			}
+		} catch (KeycloakTenantNotFoundException | KeycloakGroupNotFoundException e) {
+			// tenant or group not found: empty search result
+			return Collections.emptyList();
+		}
+
+		Map<String, Set<JsonObject>> userLists = new HashMap<>();
 
 		try {
-			//  get Keycloak specific groupID
-			String keyCloakID;
-			try {
-				keyCloakID = getKeycloakGroupID(groupId);
-			} catch (KeycloakGroupNotFoundException e) {
-				// group not found: empty search result
-				return Collections.emptyList();
-			}
 
-			// get members of this group
-			ResponseEntity<String> response = restTemplate.exchange(
-					keycloakConfiguration.getKeycloakAdminUrl() + "/groups/" + keyCloakID + "/members?max=" + getMaxQueryResultSize(), 
-					HttpMethod.GET, String.class);
-			if (!response.getStatusCode().equals(HttpStatus.OK)) {
-				throw new IdentityProviderException(
-						"Unable to read group members from " + keycloakConfiguration.getKeycloakAdminUrl()
-								+ ": HTTP status code " + response.getStatusCodeValue());
-			}
+			for (String keycloakId : groupsToCheck) {
 
-			JsonArray searchResult = parseAsJsonArray(response.getBody());
-			for (int i = 0; i < searchResult.size(); i++) {
-				JsonObject keycloakUser = getJsonObjectAtIndex(searchResult, i);
-				if (keycloakConfiguration.isUseEmailAsCamundaUserId() && 
-						!StringUtils.hasLength(getJsonString(keycloakUser, "email"))) {
-					continue;
+				Set<String> groupIds = new HashSet<>();
+				groupIds.add(keycloakId);
+				groupIds.addAll(collectSubGroupsIds(keycloakId));
+
+				for (String keyclaokGroupId : groupIds) {
+					// get members of this group
+					ResponseEntity<String> response = restTemplate.exchange(keycloakConfiguration.getKeycloakAdminUrl() + "/groups/"
+							+ keyclaokGroupId + "/members?max=" + getMaxQueryResultSize(), HttpMethod.GET, String.class);
+					if (!response.getStatusCode().equals(HttpStatus.OK)) {
+						throw new IdentityProviderException("Unable to read group members from "
+								+ keycloakConfiguration.getKeycloakAdminUrl() + ": HTTP status code " + response.getStatusCode().value());
+					}
+
+					JsonArray searchResult = parseAsJsonArray(response.getBody());
+					for (int i = 0; i < searchResult.size(); i++) {
+						JsonObject keycloakUser = getJsonObjectAtIndex(searchResult, i);
+						if (keycloakConfiguration.isUseEmailAsCamundaUserId()
+								&& !StringUtils.hasLength(getJsonString(keycloakUser, "email"))) {
+							continue;
+						}
+						if (keycloakConfiguration.isUseUsernameAsCamundaUserId()
+								&& !StringUtils.hasLength(getJsonString(keycloakUser, "username"))) {
+							continue;
+						}
+						userLists.computeIfAbsent(keycloakId, id -> new HashSet<>()).add(keycloakUser);
+					}
 				}
-				if (keycloakConfiguration.isUseUsernameAsCamundaUserId() &&
-						!StringUtils.hasLength(getJsonString(keycloakUser, "username"))) {
-					continue;
-				}
-				userList.add(transformUser(keycloakUser));
 			}
 
 		} catch (HttpClientErrorException hcee) {
@@ -157,7 +184,14 @@ public class KeycloakUserService extends KeycloakServiceBase {
 			throw new IdentityProviderException("Unable to query members of group " + groupId, rce);
 		}
 
-		return userList;
+		if (userLists.size() == 1) {
+			return userLists.values().iterator().next().stream().map(this::transformUser).filter(Objects::nonNull).toList();
+		} else if (userLists.size() > 1) {
+			return commonElements(userLists.values()).stream().map(this::transformUser).toList();
+		} else {
+			return Collections.emptyList();
+		}
+
 	}
 
 	/**
@@ -179,23 +213,22 @@ public class KeycloakUserService extends KeycloakServiceBase {
 			} else {
 				// Create user search filter
 				String userFilter = createUserSearchFilter(query);
-				response = restTemplate.exchange(keycloakConfiguration.getKeycloakAdminUrl() + "/users" + userFilter, HttpMethod.GET, String.class);
+				response = restTemplate.exchange(keycloakConfiguration.getKeycloakAdminUrl() + "/users" + userFilter, HttpMethod.GET,
+						String.class);
 			}
 			if (!response.getStatusCode().equals(HttpStatus.OK)) {
-				throw new IdentityProviderException(
-						"Unable to read users from " + keycloakConfiguration.getKeycloakAdminUrl()
-								+ ": HTTP status code " + response.getStatusCodeValue());
+				throw new IdentityProviderException("Unable to read users from " + keycloakConfiguration.getKeycloakAdminUrl()
+						+ ": HTTP status code " + response.getStatusCode().value());
 			}
 
 			JsonArray searchResult = parseAsJsonArray(response.getBody());
 			for (int i = 0; i < searchResult.size(); i++) {
 				JsonObject keycloakUser = getJsonObjectAtIndex(searchResult, i);
-				if (keycloakConfiguration.isUseEmailAsCamundaUserId() && 
-						!StringUtils.hasLength(getJsonString(keycloakUser, "email"))) {
+				if (keycloakConfiguration.isUseEmailAsCamundaUserId() && !StringUtils.hasLength(getJsonString(keycloakUser, "email"))) {
 					continue;
 				}
-				if (keycloakConfiguration.isUseUsernameAsCamundaUserId() &&
-						!StringUtils.hasLength(getJsonString(keycloakUser, "username"))) {
+				if (keycloakConfiguration.isUseUsernameAsCamundaUserId()
+						&& !StringUtils.hasLength(getJsonString(keycloakUser, "username"))) {
 					continue;
 				}
 
@@ -221,7 +254,7 @@ public class KeycloakUserService extends KeycloakServiceBase {
 		Stream<User> processed = userList.stream().filter(user -> isValid(query, user, resultLogger));
 
 		// sort users according to query criteria
-		if (query.getOrderingProperties().size() > 0) {
+		if (!query.getOrderingProperties().isEmpty()) {
 			processed = processed.sorted(new UserComparator(query.getOrderingProperties()));
 		}
 
@@ -230,7 +263,7 @@ public class KeycloakUserService extends KeycloakServiceBase {
 			processed = processed.skip(query.getFirstResult()).limit(query.getMaxResults());
 		}
 
-		return processed.collect(Collectors.toList());
+		return processed.toList();
 	}
 
 	/**
@@ -243,7 +276,7 @@ public class KeycloakUserService extends KeycloakServiceBase {
 	private boolean isValid(KeycloakUserQuery query, User user, StringBuilder resultLogger) {
 		// client side check of further query filters
 		// beware: looks like most attributes are treated as 'like' queries on Keycloak
-		//         and must therefore be seen as a sort of pre-filter only
+		// and must therefore be seen as a sort of pre-filter only
 		if (!matches(query.getId(), user.getId())) return false;
 		if (!matches(query.getIds(), user.getId())) return false;
 		if (!matches(query.getEmail(), user.getEmail())) return false;
@@ -253,7 +286,7 @@ public class KeycloakUserService extends KeycloakServiceBase {
 		if (!matches(query.getLastName(), user.getLastName())) return false;
 		if (!matchesLike(query.getLastNameLike(), user.getLastName())) return false;
 
-		if(isAuthenticatedUser(user.getId()) || isAuthorized(READ, USER, user.getId())) {
+		if (isAuthenticatedUser(user.getId()) || isAuthorized(READ, USER, user.getId())) {
 			if (KeycloakPluginLogger.INSTANCE.isDebugEnabled()) {
 				resultLogger.append(user);
 				resultLogger.append(", ");
@@ -298,7 +331,7 @@ public class KeycloakUserService extends KeycloakServiceBase {
 		}
 		return "";
 	}
-	
+
 	/**
 	 * Requests a user by its userId.
 	 * @param userId the userId
@@ -309,60 +342,65 @@ public class KeycloakUserService extends KeycloakServiceBase {
 		try {
 			String userSearch;
 			if (keycloakConfiguration.isUseEmailAsCamundaUserId()) {
-				userSearch="/users?email=" + userId;
+				userSearch = "/users?email=" + userId;
 			} else if (keycloakConfiguration.isUseUsernameAsCamundaUserId()) {
-				userSearch="/users?username=" + userId;
+				userSearch = "/users?username=" + userId;
 			} else {
-				userSearch= "/users/" + userId;
+				userSearch = "/users/" + userId;
 			}
 
-			ResponseEntity<String> response = restTemplate.exchange(
-					keycloakConfiguration.getKeycloakAdminUrl() + userSearch, HttpMethod.GET, String.class);
+			ResponseEntity<String> response = restTemplate.exchange(keycloakConfiguration.getKeycloakAdminUrl() + userSearch,
+					HttpMethod.GET, String.class);
 			String result = (keycloakConfiguration.isUseEmailAsCamundaUserId() || keycloakConfiguration.isUseUsernameAsCamundaUserId())
 					? response.getBody()
 					: "[" + response.getBody() + "]";
-			return new ResponseEntity<String>(result, response.getHeaders(), response.getStatusCode());
+			return new ResponseEntity<>(result, response.getHeaders(), response.getStatusCode());
 		} catch (HttpClientErrorException hcee) {
 			if (hcee.getStatusCode().equals(HttpStatus.NOT_FOUND)) {
 				String result = "[]";
-				return new ResponseEntity<String>(result, HttpStatus.OK);
+				return new ResponseEntity<>(result, HttpStatus.OK);
 			}
 			throw hcee;
 		}
 	}
-	
+
 	/**
 	 * Maps a Keycloak JSON result to a User object
-	 * @param result the Keycloak JSON result
-	 * @return the User object
-	 * @throws JsonException in case of errors
+	 * 
+	 * @param result
+	 *            the Keycloak JSON result
+	 * @return the User object of {@code null}
 	 */
-	private UserEntity transformUser(JsonObject result) throws JsonException {
-		UserEntity user = new UserEntity();
-		if (keycloakConfiguration.isUseEmailAsCamundaUserId()) {
-			user.setId(getJsonString(result, "email"));
-		} else if (keycloakConfiguration.isUseUsernameAsCamundaUserId()) {
-			user.setId(getJsonString(result, "username"));
-		} else {
-			user.setId(getJsonString(result, "id"));
+	private User transformUser(JsonObject result) {
+		try {
+			UserEntity user = new UserEntity();
+			if (keycloakConfiguration.isUseEmailAsCamundaUserId()) {
+				user.setId(getJsonString(result, "email"));
+			} else if (keycloakConfiguration.isUseUsernameAsCamundaUserId()) {
+				user.setId(getJsonString(result, "username"));
+			} else {
+				user.setId(getJsonString(result, "id"));
+			}
+			user.setFirstName(getJsonString(result, "firstName"));
+			user.setLastName(getJsonString(result, "lastName"));
+			if (!StringUtils.hasLength(user.getFirstName()) && !StringUtils.hasLength(user.getLastName())) {
+				user.setFirstName(getJsonString(result, "username"));
+			}
+			user.setEmail(getJsonString(result, "email"));
+			return user;
+		} catch (JsonException e) {
+			return null;
 		}
-		user.setFirstName(getJsonString(result, "firstName"));
-		user.setLastName(getJsonString(result, "lastName"));
-		if (!StringUtils.hasLength(user.getFirstName()) && !StringUtils.hasLength(user.getLastName())) {
-			user.setFirstName(getJsonString(result, "username"));
-		}
-		user.setEmail(getJsonString(result, "email"));
-		return user;
 	}
 
 	/**
 	 * Helper for client side user ordering.
 	 */
 	private static class UserComparator implements Comparator<User> {
-		private final static int USER_ID = 0;
-		private final static int EMAIL = 1;
-		private final static int FIRST_NAME = 2;
-		private final static int LAST_NAME = 3;
+		private static final int USER_ID = 0;
+		private static final int EMAIL = 1;
+		private static final int FIRST_NAME = 2;
+		private static final int LAST_NAME = 3;
 
 		private final int[] order;
 		private final boolean[] desc;
@@ -371,7 +409,7 @@ public class KeycloakUserService extends KeycloakServiceBase {
 			// Prepare query ordering
 			this.order = new int[orderList.size()];
 			this.desc = new boolean[orderList.size()];
-			for (int i = 0; i< orderList.size(); i++) {
+			for (int i = 0; i < orderList.size(); i++) {
 				QueryOrderingProperty qop = orderList.get(i);
 				if (qop.getQueryProperty().equals(UserQueryProperty.USER_ID)) {
 					order[i] = USER_ID;
@@ -387,25 +425,26 @@ public class KeycloakUserService extends KeycloakServiceBase {
 				desc[i] = Direction.DESCENDING.equals(qop.getDirection());
 			}
 		}
+
 		@Override
 		public int compare(User u1, User u2) {
 			int c = 0;
-			for (int i = 0; i < order.length; i ++) {
+			for (int i = 0; i < order.length; i++) {
 				switch (order[i]) {
-					case USER_ID:
-						c = KeycloakServiceBase.compare(u1.getId(), u2.getId());
-						break;
-					case EMAIL:
-						c = KeycloakServiceBase.compare(u1.getEmail(), u2.getEmail());
-						break;
-					case FIRST_NAME:
-						c = KeycloakServiceBase.compare(u1.getFirstName(), u2.getFirstName());
-						break;
-					case LAST_NAME:
-						c = KeycloakServiceBase.compare(u1.getLastName(), u2.getLastName());
-						break;
-					default:
-						// do nothing
+				case USER_ID:
+					c = KeycloakServiceBase.compare(u1.getId(), u2.getId());
+					break;
+				case EMAIL:
+					c = KeycloakServiceBase.compare(u1.getEmail(), u2.getEmail());
+					break;
+				case FIRST_NAME:
+					c = KeycloakServiceBase.compare(u1.getFirstName(), u2.getFirstName());
+					break;
+				case LAST_NAME:
+					c = KeycloakServiceBase.compare(u1.getLastName(), u2.getLastName());
+					break;
+				default:
+					// do nothing
 				}
 				if (c != 0) {
 					return desc[i] ? -c : c;

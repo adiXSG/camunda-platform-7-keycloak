@@ -1,11 +1,10 @@
 package org.camunda.bpm.extension.keycloak.json;
 
-import com.google.gson.JsonParser;
-import com.google.gson.JsonParseException;
-
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonParser;
 
 /**
  * Utility class for JSON parsing / streaming functions.
@@ -64,6 +63,24 @@ public class JsonUtil {
 			return element == null ? null : element.getAsString();
 		} catch (ClassCastException | IllegalStateException ex) {
 			throw new JsonException("Unable to get '" + memberName + "' from JsonObject " + jsonObject.toString(), ex);
+		}
+	}
+
+	/**
+	 * Returns the String value of a member of a given JsonObject.
+	 * 
+	 * @param jsonObject
+	 *            the JsonObject
+	 * @param memberName
+	 *            the name of the member to return
+	 * @return the String value of the member or {@code null} if no such member exists or if an error occurs
+	 */
+	public static String getJsonStringQuietly(JsonObject jsonObject, String memberName) {
+		try {
+			JsonElement element = jsonObject.get(memberName);
+			return element == null ? null : element.getAsString();
+		} catch (ClassCastException | IllegalStateException ex) {
+			return null;
 		}
 	}
 

@@ -37,6 +37,12 @@ public class KeycloakConfiguration {
 	 */
 	protected boolean useGroupPathAsCamundaGroupId = false;
 
+	/**
+	 * Whether to use the group's path as Camunda group ID. Makes sense in case you want to have human readable group IDs and e.g. use them
+	 * in Camunda's authorization configuration.
+	 */
+	protected boolean useGroupNameAsTenantId = false;
+
 	/** The name of the administrator group.
 	 *
 	 * If this name is set to a non-null and non-empty value,
@@ -44,8 +50,11 @@ public class KeycloakConfiguration {
 	 * on all built-in resources. */
 	protected String administratorGroupName;
 
+	/** The name of the root group for tenants. */
+	protected String tenantRootGroupName;
+
 	/** The ID of the administrator user.
-	 *
+	 * 
 	 * If this ID is set to a non-null and non-empty value,
 	 * the plugin will create user-level Administrator authorizations
 	 * on all built-in resources. */
@@ -88,8 +97,8 @@ public class KeycloakConfiguration {
 
 	/** Time after which a cached entry is evicted. default: 15 minutes */
 	private int cacheExpirationTimeoutMin = 15;
-	
-	/** 
+
+	/**
 	 * Determines if login password checks to Keycloak are cached. default: false.
 	 * Not applicable in case of SSO logins, but useful e.g. in case of massive 
 	 * External Tasks clients using HTTP Basic Auth only.
@@ -104,10 +113,10 @@ public class KeycloakConfiguration {
 
 	/** Time after which a cached login entry is evicted. default: 15 minutes */
 	private int loginCacheExpirationTimeoutMin = 15;
-	
-	//-------------------------------------------------------------------------
+
+	// -------------------------------------------------------------------------
 	// Getters / Setters
-	//-------------------------------------------------------------------------
+	// -------------------------------------------------------------------------
 
 	/**
 	 * @return the keycloakIssuerUrl
@@ -194,6 +203,21 @@ public class KeycloakConfiguration {
 	}
 
 	/**
+	 * @return the useGroupNameAsTenantId
+	 */
+	public boolean isUseGroupNameAsTenantId() {
+		return useGroupNameAsTenantId;
+	}
+
+	/**
+	 * @param useGroupNameAsTenantId
+	 *            the useGroupNameAsTenantId to set
+	 */
+	public void setUseGroupNameAsTenantId(boolean useGroupNameAsTenantId) {
+		this.useGroupNameAsTenantId = useGroupNameAsTenantId;
+	}
+
+	/**
 	 * @return the useGroupPathAsCamundaGroupId
 	 */
 	public boolean isUseGroupPathAsCamundaGroupId() {
@@ -205,6 +229,21 @@ public class KeycloakConfiguration {
 	 */
 	public void setUseGroupPathAsCamundaGroupId(boolean useGroupPathAsCamundaGroupId) {
 		this.useGroupPathAsCamundaGroupId = useGroupPathAsCamundaGroupId;
+	}
+
+	/**
+	 * @return the getTenantRootGroupName
+	 */
+	public String getTenantRootGroupName() {
+		return tenantRootGroupName;
+	}
+
+	/**
+	 * @param tenantRootGroupName
+	 *            the tenantRootGroupName to set
+	 */
+	public void setTenantRootGroupName(String tenantRootGroupName) {
+		this.tenantRootGroupName = tenantRootGroupName;
 	}
 
 	/**
@@ -413,9 +452,9 @@ public class KeycloakConfiguration {
 		this.loginCacheExpirationTimeoutMin = loginCacheExpirationTimeoutMin;
 	}
 
-	//-------------------------------------------------------------------------
+	// -------------------------------------------------------------------------
 	// Helpers
-	//-------------------------------------------------------------------------
+	// -------------------------------------------------------------------------
 
 	/**
 	 * Provides a unified format for setting URLs.
@@ -428,5 +467,5 @@ public class KeycloakConfiguration {
 		}
 		return url;
 	}
-	
+
 }

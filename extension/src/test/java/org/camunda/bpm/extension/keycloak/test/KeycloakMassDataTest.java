@@ -27,6 +27,7 @@ public class KeycloakMassDataTest extends AbstractKeycloakIdentityProviderTest {
 	    return new TestSetup(new TestSuite(KeycloakMassDataTest.class)) {
 
 	    	// @BeforeClass
+			@Override
 	        protected void setUp() throws Exception {
 	    		// setup Keycloak mass data test users
 	        	// -------------------------------------
@@ -57,6 +58,7 @@ public class KeycloakMassDataTest extends AbstractKeycloakIdentityProviderTest {
 	        }
 	        
 	        // @AfterClass
+			@Override
 	        protected void tearDown() throws Exception {
 	        	// tear down process engine
 	    		PluggableProcessEngineTestCase.cachedProcessEngine.close();
@@ -73,12 +75,12 @@ public class KeycloakMassDataTest extends AbstractKeycloakIdentityProviderTest {
 
 	public void testUserQueryNoFilter() {
 		List<User> result = identityService.createUserQuery().list();
-		assertEquals(USER_IDS.size() + 5, result.size());
+		assertEquals(USER_IDS.size() + 8, result.size());
 	}
 
 	public void testQueryUnlimitedList() {
 	    List<User> result = identityService.createUserQuery().unlimitedList();
-	    assertEquals(USER_IDS.size() + 5, result.size());
+		assertEquals(USER_IDS.size() + 8, result.size());
 	}
 
 	public void testGroupMemberQuery() {
@@ -98,7 +100,7 @@ public class KeycloakMassDataTest extends AbstractKeycloakIdentityProviderTest {
 	
 	public void testGroupQueryNoFilter() {
 		List<Group> result = identityService.createGroupQuery().list();
-		assertEquals(GROUP_IDS.size() + 9, result.size());
+		assertEquals(GROUP_IDS.size() + 18, result.size());
 	}
 
 	public void testGroupQueryGroupNameLike() {

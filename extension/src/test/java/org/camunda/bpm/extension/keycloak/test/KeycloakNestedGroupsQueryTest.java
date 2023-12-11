@@ -72,10 +72,11 @@ public class KeycloakNestedGroupsQueryTest extends AbstractKeycloakIdentityProvi
 		assertEquals("expected group child2 to be included", 1, result.stream().filter(g -> g.getName().equals("child2")).count());
 
 		result = identityService.createGroupQuery().groupNameLike("*child*").list();
-		assertEquals(3, result.size());
+		assertEquals(4, result.size());
 		assertEquals("expected group child1 to be included", 1, result.stream().filter(g -> g.getName().equals("child1")).count());
 		assertEquals("expected group child2 to be included", 1, result.stream().filter(g -> g.getName().equals("child2")).count());
 		assertEquals("expected group subchild1 to be included", 1, result.stream().filter(g -> g.getName().equals("subchild1")).count());
+		assertEquals("expected group subchild2 to be included", 1, result.stream().filter(g -> g.getName().equals("subchild2")).count());
 	}
 	
 	public void testGroupQueryFilterByGroupNameAndGroupNameLike() {
@@ -102,6 +103,14 @@ public class KeycloakNestedGroupsQueryTest extends AbstractKeycloakIdentityProvi
 		assertEquals("johnfoo@gmail.com", user.getId());
 
 		user = identityService.createUserQuery().memberOfGroup(GROUP_ID_HIERARCHY_CHILD1).singleResult();
+		assertNotNull(user);
+		assertEquals("johnfoo@gmail.com", user.getId());
+
+		user = identityService.createUserQuery().memberOfGroup(GROUP_ID_HIERARCHY_ROOT).singleResult();
+		assertNotNull(user);
+		assertEquals("johnfoo@gmail.com", user.getId());
+
+		user = identityService.createUserQuery().memberOfGroup(GROUP_ID_HIERARCHY_SUBCHILD2).singleResult();
 		assertNull(user);
 	}
 

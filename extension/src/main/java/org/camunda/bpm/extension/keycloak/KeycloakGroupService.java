@@ -2,14 +2,24 @@ package org.camunda.bpm.extension.keycloak;
 
 import static org.camunda.bpm.engine.authorization.Permissions.READ;
 import static org.camunda.bpm.engine.authorization.Resources.GROUP;
-import static org.camunda.bpm.extension.keycloak.json.JsonUtil.*;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.getJsonArray;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.getJsonObject;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.getJsonObjectAtIndex;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.getJsonString;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.getJsonStringAtIndex;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.getJsonStringQuietly;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.getOptJsonString;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.parseAsJsonArray;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.parseAsJsonObjectAndGetMemberAsString;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import org.camunda.bpm.engine.authorization.Groups;
 import org.camunda.bpm.engine.identity.Group;
@@ -69,7 +79,7 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 			} catch (RestClientException | JsonException ex) {
 				// group not found: fall through
 			}
-			
+
 			// check whether configured admin group can be resolved as group name
 			try {
 				ResponseEntity<String> response = restTemplate.exchange(
@@ -88,7 +98,7 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 						return getJsonString(getJsonObjectAtIndex(groups, 0), "path").substring(1); // remove trailing '/'
 					}
 					return getJsonString(getJsonObjectAtIndex(groups, 0), "id");
-				} else if (groups.size() > 0) {
+				} else if (!groups.isEmpty()) {
 					throw new IdentityProviderException("Configured administratorGroupName " + configuredAdminGroupName + " is not unique. Please configure exact group path.");
 				}
 				// groups size == 0: fall through
@@ -113,7 +123,7 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 		List<Group> groupList = new ArrayList<>();
 
 		try {
-			//  get Keycloak specific userID
+			// get Keycloak specific userID
 			String keyCloakID;
 			try {
 				keyCloakID = getKeycloakUserID(userId);
@@ -124,12 +134,12 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 
 			// get groups of this user
 			ResponseEntity<String> response = restTemplate.exchange(
-					keycloakConfiguration.getKeycloakAdminUrl() + "/users/" + keyCloakID + "/groups?max=" + getMaxQueryResultSize(), 
+					keycloakConfiguration.getKeycloakAdminUrl() + "/users/" + keyCloakID + "/groups?max=" + getMaxQueryResultSize(),
 					HttpMethod.GET, String.class);
 			if (!response.getStatusCode().equals(HttpStatus.OK)) {
 				throw new IdentityProviderException(
 						"Unable to read user groups from " + keycloakConfiguration.getKeycloakAdminUrl()
-								+ ": HTTP status code " + response.getStatusCodeValue());
+						+ ": HTTP status code " + response.getStatusCode().value());
 			}
 
 			JsonArray searchResult = parseAsJsonArray(response.getBody());
@@ -149,7 +159,7 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 
 		return groupList;
 	}
-	
+
 	/**
 	 * Requests groups.
 	 * @param query the group query - not including a userId criteria
@@ -162,7 +172,19 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 			// get groups according to search criteria
 			ResponseEntity<String> response;
 
+			Set<String> tenantGroupIds = null;
+			if (StringUtils.hasLength(query.getTenantId())) {
+				try {
+					String keycloakTenantId = getKeycloakTenantID(query.getTenantId());
+					tenantGroupIds = collectSubGroupsIds(keycloakTenantId);
+				} catch (KeycloakTenantNotFoundException e) {
+					return groupList;
+				}
+			}
+
 			if (StringUtils.hasLength(query.getId())) {
+				if (tenantGroupIds != null && !tenantGroupIds.contains(query.getTenantId()))
+					return groupList;
 				response = requestGroupById(query.getId());
 			} else if (query.getIds() != null && query.getIds().length == 1) {
 				response = requestGroupById(query.getIds()[0]);
@@ -173,7 +195,7 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 			if (!response.getStatusCode().equals(HttpStatus.OK)) {
 				throw new IdentityProviderException(
 						"Unable to read groups from " + keycloakConfiguration.getKeycloakAdminUrl()
-								+ ": HTTP status code " + response.getStatusCodeValue());
+						+ ": HTTP status code " + response.getStatusCode().value());
 			}
 
 			JsonArray searchResult;
@@ -183,15 +205,30 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 				// for non ID queries search in subgroups as well
 				searchResult = flattenSubGroups(parseAsJsonArray(response.getBody()), new JsonArray());
 			}
-			for (int i = 0; i < searchResult.size(); i++) {
-				groupList.add(transformGroup(getJsonObjectAtIndex(searchResult, i)));
+
+			if (!searchResult.isEmpty()) {
+				final Set<String> ids = tenantGroupIds;
+				return StreamSupport.stream(searchResult.spliterator(), false)
+						//
+						.filter(JsonObject.class::isInstance)
+						//
+						.map(JsonObject.class::cast)
+						//
+						.filter(e -> ids == null || ids.contains(getJsonStringQuietly(e, "id")))
+						//
+						.filter(Objects::nonNull)
+						//
+						.map(this::transformGroupQuietly)
+						//
+						.toList();
+			} else {
+				return groupList;
 			}
 
 		} catch (RestClientException | JsonException rce) {
 			throw new IdentityProviderException("Unable to query groups", rce);
 		}
 
-		return groupList;
 	}
 
 	/**
@@ -204,9 +241,9 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 	public List<Group> postProcessResults(KeycloakGroupQuery query, List<Group> groupList, StringBuilder resultLogger) {
 		// apply client side filtering
 		Stream<Group> processed = groupList.stream().filter(group -> isValid(query, group, resultLogger));
-		
+
 		// sort groups according to query criteria
-		if (query.getOrderingProperties().size() > 0) {
+		if (!query.getOrderingProperties().isEmpty()) {
 			processed = processed.sorted(new GroupComparator(query.getOrderingProperties()));
 		}
 
@@ -216,7 +253,7 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 		}
 
 		// group queries in Keycloak do not consider the max attribute within the search request
-		return processed.limit(keycloakConfiguration.getMaxResultSize()).collect(Collectors.toList());
+		return processed.limit(keycloakConfiguration.getMaxResultSize()).toList();
 	}
 
 	/**
@@ -261,7 +298,7 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 		if (StringUtils.hasLength(query.getNameLike())) {
 			addArgument(filter, "search", query.getNameLike().replaceAll("[%,\\*]", ""));
 		}
-		addArgument(filter, "max", getMaxQueryResultSize());
+		// addArgument(filter, "max", getMaxQueryResultSize());
 		if (filter.length() > 0) {
 			filter.insert(0, "?");
 			String result = filter.toString();
@@ -280,21 +317,21 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 	 */
 	private JsonArray flattenSubGroups(JsonArray groups, JsonArray result) throws JsonException {
 		if (groups == null) return result;
-	    for (int i = 0; i < groups.size(); i++) {
-	    	JsonObject group = getJsonObjectAtIndex(groups, i);
-	    	JsonArray subGroups;
+		for (int i = 0; i < groups.size(); i++) {
+			JsonObject group = getJsonObjectAtIndex(groups, i);
+			JsonArray subGroups;
 			try {
 				subGroups = getJsonArray(group, "subGroups");
-		    	group.remove("subGroups");
-		    	result.add(group);
-		    	flattenSubGroups(subGroups, result);
+				group.remove("subGroups");
+				result.add(group);
+				flattenSubGroups(subGroups, result);
 			} catch (JsonException e) {
 				result.add(group);
 			}
-	    }
-	    return result;
+		}
+		return result;
 	}
-	
+
 	/**
 	 * Requests data of single group.
 	 * @param groupId the ID of the requested group
@@ -305,7 +342,9 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 		try {
 			String groupSearch;
 			if (keycloakConfiguration.isUseGroupPathAsCamundaGroupId()) {
-				groupSearch = "/group-by-path/" + groupId;
+				String tenantGroupName = keycloakConfiguration.getTenantRootGroupName();
+				String keycloakName = StringUtils.hasLength(tenantGroupName) ? tenantGroupName + "/" + groupId : groupId;
+				groupSearch = "/group-by-path/" + keycloakName;
 			} else {
 				groupSearch = "/groups/" + groupId;
 			}
@@ -313,16 +352,24 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 			ResponseEntity<String> response = restTemplate.exchange(
 					keycloakConfiguration.getKeycloakAdminUrl() + groupSearch, HttpMethod.GET, String.class);
 			String result = "[" + response.getBody() + "]";
-			return new ResponseEntity<String>(result, response.getHeaders(), response.getStatusCode());
+			return new ResponseEntity<>(result, response.getHeaders(), response.getStatusCode());
 		} catch (HttpClientErrorException hcee) {
 			if (hcee.getStatusCode().equals(HttpStatus.NOT_FOUND)) {
 				String result = "[]";
-				return new ResponseEntity<String>(result, HttpStatus.OK);
+				return new ResponseEntity<>(result, HttpStatus.OK);
 			}
 			throw hcee;
 		}
 	}
-	
+
+	private Group transformGroupQuietly(JsonObject result) {
+		try {
+			return transformGroup(result);
+		} catch (JsonException e) {
+			return null;
+		}
+	}
+
 	/**
 	 * Maps a Keycloak JSON result to a Group object
 	 * @param result the Keycloak JSON result
@@ -332,7 +379,11 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 	private GroupEntity transformGroup(JsonObject result) throws JsonException {
 		GroupEntity group = new GroupEntity();
 		if (keycloakConfiguration.isUseGroupPathAsCamundaGroupId()) {
-			group.setId(getJsonString(result, "path").substring(1)); // remove trailing '/'
+			String tempId = getJsonString(result, "path").substring(1); // remove trailing '/'
+			String id = StringUtils.startsWithIgnoreCase(tempId, keycloakConfiguration.getTenantRootGroupName() + "/")
+					? tempId.substring(tempId.indexOf("/") + 1)
+					: tempId;
+			group.setId(id);
 		} else {
 			group.setId(getJsonString(result, "id"));
 		}
@@ -353,14 +404,17 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 	 */
 	private boolean isSystemGroup(JsonObject result) throws JsonException {
 		String name = getJsonString(result, "name");
-		if (Groups.CAMUNDA_ADMIN.equals(name) || 
-				name.equals(keycloakConfiguration.getAdministratorGroupName())) {
+		String path = getJsonString(result, "path");
+		String tenantRoot = keycloakConfiguration.getTenantRootGroupName();
+		if (Groups.CAMUNDA_ADMIN.equals(name) || name.equals(keycloakConfiguration.getAdministratorGroupName())
+				|| (StringUtils.hasLength(tenantRoot) && (tenantRoot.equalsIgnoreCase(path.substring(1)))
+						|| (tenantRoot + "/" + name).equalsIgnoreCase(path.substring(1)))) {
 			return true;
 		}
 		try {
 			JsonArray types = getJsonArray(getJsonObject(result, "attributes"), "type");
 			for (int i = 0; i < types.size(); i++) {
-				if (Groups.GROUP_TYPE_SYSTEM.equals(getJsonStringAtIndex(types, i).toUpperCase())) {
+				if (Groups.GROUP_TYPE_SYSTEM.equalsIgnoreCase(getJsonStringAtIndex(types, i))) {
 					return true;
 				}
 			}
@@ -369,14 +423,14 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 		}
 		return false;
 	}
-	
+
 	/**
 	 * Helper for client side group ordering.
 	 */
 	private static class GroupComparator implements Comparator<Group> {
-		private final static int GROUP_ID = 0;
-		private final static int NAME = 1;
-		private final static int TYPE = 2;
+		private static final int GROUP_ID = 0;
+		private static final int NAME = 1;
+		private static final int TYPE = 2;
 
 		private final int[] order;
 		private final boolean[] desc;
@@ -385,7 +439,7 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 			// Prepare query ordering
 			this.order = new int[orderList.size()];
 			this.desc = new boolean[orderList.size()];
-			for (int i = 0; i< orderList.size(); i++) {
+			for (int i = 0; i < orderList.size(); i++) {
 				QueryOrderingProperty qop = orderList.get(i);
 				if (qop.getQueryProperty().equals(GroupQueryProperty.GROUP_ID)) {
 					order[i] = GROUP_ID;
@@ -403,19 +457,19 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 		@Override
 		public int compare(Group g1, Group g2) {
 			int c = 0;
-			for (int i = 0; i < order.length; i ++) {
+			for (int i = 0; i < order.length; i++) {
 				switch (order[i]) {
-					case GROUP_ID:
-						c = KeycloakServiceBase.compare(g1.getId(), g2.getId());
-						break;
-					case NAME:
-						c = KeycloakServiceBase.compare(g1.getName(), g2.getName());
-						break;
-					case TYPE:
-						c = KeycloakServiceBase.compare(g1.getType(), g2.getType());
-						break;
-					default:
-						// do nothing
+				case GROUP_ID:
+					c = KeycloakServiceBase.compare(g1.getId(), g2.getId());
+					break;
+				case NAME:
+					c = KeycloakServiceBase.compare(g1.getName(), g2.getName());
+					break;
+				case TYPE:
+					c = KeycloakServiceBase.compare(g1.getType(), g2.getType());
+					break;
+				default:
+					// do nothing
 				}
 				if (c != 0) {
 					return desc[i] ? -c : c;
@@ -424,5 +478,5 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 			return c;
 		}
 	}
-	
+
 }

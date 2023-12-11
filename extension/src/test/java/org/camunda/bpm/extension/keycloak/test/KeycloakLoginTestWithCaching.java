@@ -1,9 +1,10 @@
 package org.camunda.bpm.extension.keycloak.test;
 
+import static org.awaitility.Awaitility.await;
+
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
@@ -18,8 +19,6 @@ import junit.extensions.TestSetup;
 import junit.framework.Test;
 import junit.framework.TestSuite;
 
-import static org.awaitility.Awaitility.await;
-
 /**
  * Keycloak login test with login cache enabled.
  */
@@ -29,6 +28,7 @@ public class KeycloakLoginTestWithCaching extends AbstractKeycloakIdentityProvid
 		return new TestSetup(new TestSuite(KeycloakLoginTestWithCaching.class)) {
 
 			// @BeforeClass
+			@Override
 			protected void setUp() throws Exception {
 				ProcessEngineConfigurationImpl config = (ProcessEngineConfigurationImpl) ProcessEngineConfiguration
 								.createProcessEngineConfigurationFromResource("camunda.enableLoginCaching.cfg.xml");
@@ -37,6 +37,7 @@ public class KeycloakLoginTestWithCaching extends AbstractKeycloakIdentityProvid
 			}
 
 			// @AfterClass
+			@Override
 			protected void tearDown() throws Exception {
 				PluggableProcessEngineTestCase.cachedProcessEngine.close();
 				PluggableProcessEngineTestCase.cachedProcessEngine = null;
@@ -241,7 +242,7 @@ public class KeycloakLoginTestWithCaching extends AbstractKeycloakIdentityProvid
 						.stream()
 						.map(CacheableKeycloakCheckPasswordCall::getUserId)
 						.sorted()
-						.collect(Collectors.toList());
+						.toList();
 	}
 	
 }

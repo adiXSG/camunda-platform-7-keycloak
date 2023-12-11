@@ -18,23 +18,23 @@ public class KeycloakRefreshTokenTest extends AbstractKeycloakIdentityProviderTe
 	 */
 	public void testRefreshToken() throws Exception {
 		// access Keycloak
-	    assertEquals(5, identityService.createUserQuery().count());
+		assertEquals(8, identityService.createUserQuery().count());
 
-	    // expire current token (the dirty way)
+		// expire current token (the dirty way)
 	    KeycloakIdentityProviderFactory sessionFacory = (KeycloakIdentityProviderFactory) 
 	    		((ProcessEngineConfigurationImpl) processEngine.getProcessEngineConfiguration()).getIdentityProviderSessionFactory();
-	    KeycloakContextProvider keycloakContextProvider = getProtectedField(sessionFacory, "keycloakContextProvider");
-	    KeycloakContext ctx = getProtectedField(keycloakContextProvider, "context");
-	    Field expiresField = KeycloakContext.class.getDeclaredField("expiresAt");
-	    expiresField.setAccessible(true);
-	    expiresField.set(ctx, 0);
-	    assertTrue(ctx.needsRefresh());
-	    
+		KeycloakContextProvider keycloakContextProvider = getProtectedField(sessionFacory, "keycloakContextProvider");
+		KeycloakContext ctx = getProtectedField(keycloakContextProvider, "context");
+		Field expiresField = KeycloakContext.class.getDeclaredField("expiresAt");
+		expiresField.setAccessible(true);
+		expiresField.set(ctx, 0);
+		assertTrue(ctx.needsRefresh());
+
 		// access Keycloak again
-	    assertEquals(5, identityService.createUserQuery().count());
-	    
+		assertEquals(8, identityService.createUserQuery().count());
+
 	}
-	
+
 	/**
 	 * Helper for accessing protected fields.
 	 * @param obj the parent object
@@ -48,5 +48,5 @@ public class KeycloakRefreshTokenTest extends AbstractKeycloakIdentityProviderTe
 		field.setAccessible(true);
 		return (T) field.get(obj);
 	}
-	
+
 }

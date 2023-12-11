@@ -27,7 +27,8 @@ public class KeycloakMaxResultSizeTest extends AbstractKeycloakIdentityProviderT
 	    return new TestSetup(new TestSuite(KeycloakMaxResultSizeTest.class)) {
 
 	    	// @BeforeClass
-	        protected void setUp() throws Exception {
+	        @Override
+			protected void setUp() throws Exception {
 	    		// setup Keycloak mass data test users
 	        	// -------------------------------------
 	    		HttpHeaders headers = authenticateKeycloakAdmin();
@@ -51,7 +52,8 @@ public class KeycloakMaxResultSizeTest extends AbstractKeycloakIdentityProviderT
 	        }
 	        
 	        // @AfterClass
-	        protected void tearDown() throws Exception {
+	        @Override
+			protected void tearDown() throws Exception {
 	        	// tear down process engine
 	    		PluggableProcessEngineTestCase.cachedProcessEngine.close();
 	    		PluggableProcessEngineTestCase.cachedProcessEngine = null;

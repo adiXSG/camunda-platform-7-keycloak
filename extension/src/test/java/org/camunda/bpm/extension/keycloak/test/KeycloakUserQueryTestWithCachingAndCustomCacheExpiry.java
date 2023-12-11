@@ -1,8 +1,9 @@
 package org.camunda.bpm.extension.keycloak.test;
 
-import junit.extensions.TestSetup;
-import junit.framework.Test;
-import junit.framework.TestSuite;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.identity.User;
 import org.camunda.bpm.engine.identity.UserQuery;
@@ -14,10 +15,9 @@ import org.camunda.bpm.extension.keycloak.test.util.CacheAwareKeycloakIdentityPr
 import org.camunda.bpm.extension.keycloak.test.util.CountingHttpRequestInterceptor;
 import org.camunda.bpm.extension.keycloak.test.util.PredictableTicker;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.stream.Collectors;
+import junit.extensions.TestSetup;
+import junit.framework.Test;
+import junit.framework.TestSuite;
 
 /**
  * User query test for the Keycloak identity provider with caching enabled and cache duration configured
@@ -28,6 +28,7 @@ public class KeycloakUserQueryTestWithCachingAndCustomCacheExpiry extends Abstra
 		return new TestSetup(new TestSuite(KeycloakUserQueryTestWithCachingAndCustomCacheExpiry.class)) {
 
 			// @BeforeClass
+			@Override
 			protected void setUp() throws Exception {
 				ProcessEngineConfigurationImpl config = (ProcessEngineConfigurationImpl) ProcessEngineConfiguration
 								.createProcessEngineConfigurationFromResource("camunda.enableCachingAndConfigureCacheDuration.cfg.xml");
@@ -36,6 +37,7 @@ public class KeycloakUserQueryTestWithCachingAndCustomCacheExpiry extends Abstra
 			}
 
 			// @AfterClass
+			@Override
 			protected void tearDown() throws Exception {
 				PluggableProcessEngineTestCase.cachedProcessEngine.close();
 				PluggableProcessEngineTestCase.cachedProcessEngine = null;
@@ -123,7 +125,7 @@ public class KeycloakUserQueryTestWithCachingAndCustomCacheExpiry extends Abstra
 						.stream()
 						.map(CacheableKeycloakUserQuery::getFirstName)
 						.sorted()
-						.collect(Collectors.toList());
+						.toList();
 	}
 
 	private static void processPendingCacheEvictions() {

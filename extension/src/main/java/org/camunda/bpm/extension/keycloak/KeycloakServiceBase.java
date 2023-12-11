@@ -1,21 +1,36 @@
 package org.camunda.bpm.extension.keycloak;
 
-import static org.camunda.bpm.extension.keycloak.json.JsonUtil.*;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.findFirst;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.getJsonArray;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.getJsonObjectAtIndex;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.getJsonString;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.parseAsJsonArray;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.parseAsJsonObject;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.parseAsJsonObjectAndGetMemberAsString;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import org.camunda.bpm.engine.authorization.Permission;
 import org.camunda.bpm.engine.authorization.Resource;
+import org.camunda.bpm.engine.impl.identity.IdentityProviderException;
 import org.camunda.bpm.engine.impl.persistence.entity.UserEntity;
 import org.camunda.bpm.extension.keycloak.json.JsonException;
 import org.camunda.bpm.extension.keycloak.rest.KeycloakRestTemplate;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -88,7 +103,7 @@ public abstract class KeycloakServiceBase {
 					(keycloakConfiguration.isUseEmailAsCamundaUserId() 
 					? " not found - email unknown" 
 					: " not found - username unknown"));
-		} catch (JsonException je) {
+		} catch (HttpClientErrorException.NotFound | JsonException je) {
 			throw new KeycloakUserNotFoundException(userId + 
 					(keycloakConfiguration.isUseEmailAsCamundaUserId() 
 					? " not found - email unknown" 
@@ -109,7 +124,9 @@ public abstract class KeycloakServiceBase {
 	protected String getKeycloakGroupID(String groupId) throws KeycloakGroupNotFoundException, RestClientException {
 		String groupSearch;
 		if (keycloakConfiguration.isUseGroupPathAsCamundaGroupId()) {
-			groupSearch = "/group-by-path/" + groupId;
+			String tenantGroupName = keycloakConfiguration.getTenantRootGroupName();
+			String keycloakName = StringUtils.hasLength(tenantGroupName) ? tenantGroupName + "/" + groupId : groupId;
+			groupSearch = "/group-by-path/" + keycloakName;
 		} else {
 			return groupId;
 		}
@@ -118,11 +135,41 @@ public abstract class KeycloakServiceBase {
 			ResponseEntity<String> response = restTemplate.exchange(
 					keycloakConfiguration.getKeycloakAdminUrl() + groupSearch, HttpMethod.GET, String.class);
 			return parseAsJsonObjectAndGetMemberAsString(response.getBody(), "id");
-		} catch (JsonException je) {
+		} catch (HttpClientErrorException.NotFound | JsonException je) {
 			throw new KeycloakGroupNotFoundException(groupId + " not found - path unknown", je);
 		}
 	}
 	
+	/**
+	 * Gets the Keycloak internal ID of a tenant group.
+	 * 
+	 * @param tenantId
+	 *            the tenantId as sent by the client
+	 * @return the Keycloak internal ID
+	 * @throws KeycloakTenantNotFoundException
+	 *             in case the tenant group cannot be found
+	 * @throws RestClientException
+	 *             in case of technical errors
+	 */
+	protected String getKeycloakTenantID(String tenantId) throws KeycloakTenantNotFoundException, RestClientException {
+		String groupSearch;
+		if (keycloakConfiguration.isUseGroupNameAsTenantId()) {
+			String tenantGroupName = keycloakConfiguration.getTenantRootGroupName();
+			String keycloakName = StringUtils.hasLength(tenantGroupName) ? tenantGroupName + "/" + tenantId : tenantId;
+			groupSearch = "/group-by-path/" + keycloakName;
+		} else {
+			return tenantId;
+		}
+
+		try {
+			ResponseEntity<String> response = restTemplate.exchange(keycloakConfiguration.getKeycloakAdminUrl() + groupSearch,
+					HttpMethod.GET, String.class);
+			return parseAsJsonObjectAndGetMemberAsString(response.getBody(), "id");
+		} catch (HttpClientErrorException.NotFound | JsonException je) {
+			throw new KeycloakTenantNotFoundException(tenantId + " not found - path unknown", je);
+		}
+	}
+
 	//-------------------------------------------------------------------------
 	// General helper methods
 	//-------------------------------------------------------------------------
@@ -247,4 +294,52 @@ public abstract class KeycloakServiceBase {
 				.getCommandContext().getAuthorizationManager().isAuthorized(permission, resource, resourceId);
 	}
 
+	protected Set<String> collectSubGroupsIds(String keycloakGroupId) throws JsonException {
+		// get members of this group
+		ResponseEntity<String> response = restTemplate.exchange(keycloakConfiguration.getKeycloakAdminUrl() + "/groups/" + keycloakGroupId,
+				HttpMethod.GET, String.class);
+		if (!response.getStatusCode().equals(HttpStatus.OK)) {
+			throw new IdentityProviderException("Unable to read group from " + keycloakConfiguration.getKeycloakAdminUrl()
+					+ ": HTTP status code " + response.getStatusCode().value());
+		}
+
+		JsonObject searchResult = parseAsJsonObject(response.getBody());
+		return getSubGroupIds(searchResult);
+	}
+
+	protected Set<String> getSubGroupIds(JsonObject group) throws JsonException {
+		Set<String> subGroupIds = new HashSet<>();
+		JsonArray subGroups = getJsonArray(group, "subGroups");
+		if (subGroups != null) {
+			for (int i = 0; i < subGroups.size(); i++) {
+				JsonObject subGroup = getJsonObjectAtIndex(subGroups, i);
+				subGroupIds.add(getJsonString(subGroup, "id"));
+				if (subGroup.has("subGroups")) {
+					subGroupIds.addAll(getSubGroupIds(subGroup));
+				}
+			}
+		}
+		return subGroupIds;
+	}
+
+	protected boolean isTenantGroup(JsonObject groupJsonObject) throws JsonException {
+		return isTenantGroup(keycloakConfiguration, groupJsonObject);
+	}
+
+	private static boolean isTenantGroup(KeycloakConfiguration config, JsonObject result) throws JsonException {
+		String tenantRootGroupName = config.getTenantRootGroupName();
+		if (tenantRootGroupName == null || tenantRootGroupName.length() == 0)
+			return false;
+		String path = getJsonString(result, "path");
+		return StringUtils.startsWithIgnoreCase(path, "/" + tenantRootGroupName + "/") && path.split("/").length == 3;
+	}
+
+	protected <T> List<T> commonElements(Collection<Set<T>> collection) {
+		Iterator<Set<T>> it = collection.iterator();
+		List<T> commonElements = new ArrayList<>(it.next());
+		while (it.hasNext()) {
+			commonElements.retainAll(it.next());
+		}
+		return commonElements;
+	}
 }

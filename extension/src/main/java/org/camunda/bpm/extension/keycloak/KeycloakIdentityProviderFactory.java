@@ -1,5 +1,12 @@
 package org.camunda.bpm.extension.keycloak;
 
+import java.net.URI;
+import java.nio.charset.Charset;
+import java.security.GeneralSecurityException;
+import java.util.List;
+
+import javax.net.ssl.SSLContext;
+
 import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.CredentialsStore;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
@@ -12,6 +19,7 @@ import org.apache.hc.client5.http.ssl.TrustAllStrategy;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.ssl.SSLContextBuilder;
 import org.camunda.bpm.engine.identity.Group;
+import org.camunda.bpm.engine.identity.Tenant;
 import org.camunda.bpm.engine.identity.User;
 import org.camunda.bpm.engine.impl.identity.IdentityProviderException;
 import org.camunda.bpm.engine.impl.identity.ReadOnlyIdentityProvider;
@@ -26,12 +34,6 @@ import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.util.StringUtils;
 
-import javax.net.ssl.SSLContext;
-import java.net.URI;
-import java.nio.charset.Charset;
-import java.security.GeneralSecurityException;
-import java.util.List;
-
 /**
  * Keycloak Identity Provider Session Factory.
  */
@@ -42,6 +44,7 @@ public class KeycloakIdentityProviderFactory implements SessionFactory {
 
 	protected QueryCache<CacheableKeycloakUserQuery, List<User>> userQueryCache;
 	protected QueryCache<CacheableKeycloakGroupQuery, List<Group>> groupQueryCache;
+	protected QueryCache<CacheableKeycloakTenantQuery, List<Tenant>> tenantQueryCache;
 	protected QueryCache<CacheableKeycloakCheckPasswordCall, Boolean> checkPasswordCache;
 
 	protected KeycloakRestTemplate restTemplate = new KeycloakRestTemplate();
@@ -61,6 +64,7 @@ public class KeycloakIdentityProviderFactory implements SessionFactory {
 
 		this.setUserQueryCache(CacheFactory.create(cacheConfiguration));
 		this.setGroupQueryCache(CacheFactory.create(cacheConfiguration));
+		this.setTenantQueryCache(CacheFactory.create(cacheConfiguration));
 		this.setCheckPasswordCache(CacheFactory.create(loginCacheConfiguration));
 
 		// Create REST template with pooling HTTP client
@@ -70,10 +74,10 @@ public class KeycloakIdentityProviderFactory implements SessionFactory {
 
 		if (keycloakConfiguration.isDisableSSLCertificateValidation()) {
 			try {
-			SSLContext sslContext = SSLContextBuilder.create().loadTrustMaterial(new TrustAllStrategy()).build();
-			SSLConnectionSocketFactory sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslContext,
-					NoopHostnameVerifier.INSTANCE);
-			connectionManagerBuilder.setSSLSocketFactory(sslConnectionSocketFactory);
+				SSLContext sslContext = SSLContextBuilder.create().loadTrustMaterial(new TrustAllStrategy()).build();
+				SSLConnectionSocketFactory sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslContext,
+						NoopHostnameVerifier.INSTANCE);
+				connectionManagerBuilder.setSSLSocketFactory(sslConnectionSocketFactory);
 			} catch (GeneralSecurityException e) {
 				throw new IdentityProviderException("Disabling SSL certificate validation failed", e);
 			}
@@ -111,7 +115,7 @@ public class KeycloakIdentityProviderFactory implements SessionFactory {
 		}
 
 		restTemplate.getInterceptors().addAll(customHttpRequestInterceptors);
-		
+
 		// Create Keycloak context provider for access token handling
 		keycloakContextProvider = new KeycloakContextProvider(keycloakConfiguration, restTemplate);
 	}
@@ -139,18 +143,26 @@ public class KeycloakIdentityProviderFactory implements SessionFactory {
 	}
 
 	/**
+	 * @param tenantQueryCache set the cache for the queryCache for tenant queries
+	 */
+	public void setTenantQueryCache(QueryCache<CacheableKeycloakTenantQuery, List<Tenant>> tenantQueryCache) {
+		this.tenantQueryCache = tenantQueryCache;
+	}
+
+	/**
 	 * @param checkPasswordCache set the cache for check password function
 	 */
 	public void setCheckPasswordCache(QueryCache<CacheableKeycloakCheckPasswordCall, Boolean> checkPasswordCache) {
 		this.checkPasswordCache = checkPasswordCache;
 	}
-	
+
 	/**
 	 * immediately clear entries from cache
 	 */
 	public void clearCache() {
 		this.userQueryCache.clear();
 		this.groupQueryCache.clear();
+		this.tenantQueryCache.clear();
 		this.checkPasswordCache.clear();
 	}
 
@@ -159,8 +171,8 @@ public class KeycloakIdentityProviderFactory implements SessionFactory {
 	 */
 	@Override
 	public Session openSession() {
-		return new KeycloakIdentityProviderSession(
-						keycloakConfiguration, restTemplate, keycloakContextProvider, userQueryCache, groupQueryCache, checkPasswordCache);
+		return new KeycloakIdentityProviderSession(keycloakConfiguration, restTemplate, keycloakContextProvider, userQueryCache,
+				groupQueryCache, tenantQueryCache, checkPasswordCache);
 	}
 
 }

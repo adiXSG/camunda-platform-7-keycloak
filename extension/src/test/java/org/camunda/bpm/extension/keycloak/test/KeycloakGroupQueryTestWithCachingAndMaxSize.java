@@ -1,8 +1,9 @@
 package org.camunda.bpm.extension.keycloak.test;
 
-import junit.extensions.TestSetup;
-import junit.framework.Test;
-import junit.framework.TestSuite;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.identity.Group;
 import org.camunda.bpm.engine.identity.GroupQuery;
@@ -13,10 +14,9 @@ import org.camunda.bpm.extension.keycloak.plugin.KeycloakIdentityProviderPlugin;
 import org.camunda.bpm.extension.keycloak.test.util.CacheAwareKeycloakIdentityProviderPluginForTest;
 import org.camunda.bpm.extension.keycloak.test.util.CountingHttpRequestInterceptor;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.stream.Collectors;
+import junit.extensions.TestSetup;
+import junit.framework.Test;
+import junit.framework.TestSuite;
 
 /**
  * Tests group queries with caching enabled and max size configured
@@ -27,6 +27,7 @@ public class KeycloakGroupQueryTestWithCachingAndMaxSize extends AbstractKeycloa
 		return new TestSetup(new TestSuite(KeycloakGroupQueryTestWithCachingAndMaxSize.class)) {
 
 			// @BeforeClass
+			@Override
 			protected void setUp() throws Exception {
 				ProcessEngineConfigurationImpl config = (ProcessEngineConfigurationImpl) ProcessEngineConfiguration
 								.createProcessEngineConfigurationFromResource("camunda.enableCachingAndConfigureMaxCacheSize.cfg.xml");
@@ -35,6 +36,7 @@ public class KeycloakGroupQueryTestWithCachingAndMaxSize extends AbstractKeycloa
 			}
 
 			// @AfterClass
+			@Override
 			protected void tearDown() throws Exception {
 				PluggableProcessEngineTestCase.cachedProcessEngine.close();
 				PluggableProcessEngineTestCase.cachedProcessEngine = null;
@@ -131,6 +133,6 @@ public class KeycloakGroupQueryTestWithCachingAndMaxSize extends AbstractKeycloa
 						.stream()
 						.map(CacheableKeycloakGroupQuery::getName)
 						.sorted()
-						.collect(Collectors.toList());
+						.toList();
 	}
 }

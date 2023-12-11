@@ -22,6 +22,7 @@ public class KeycloakUseGroupPathdAsGroupIdQueryTest extends AbstractKeycloakIde
 	    return new TestSetup(new TestSuite(KeycloakUseGroupPathdAsGroupIdQueryTest.class)) {
 
 	    	// @BeforeClass
+			@Override
 	        protected void setUp() throws Exception {
 	    		ProcessEngineConfigurationImpl config = (ProcessEngineConfigurationImpl) ProcessEngineConfiguration
 	    				.createProcessEngineConfigurationFromResource("camunda.useGroupPathAsCamundaGroupId.cfg.xml");
@@ -30,6 +31,7 @@ public class KeycloakUseGroupPathdAsGroupIdQueryTest extends AbstractKeycloakIde
 	        }
 	        
 	        // @AfterClass
+			@Override
 	        protected void tearDown() throws Exception {
 	    		PluggableProcessEngineTestCase.cachedProcessEngine.close();
 	    		PluggableProcessEngineTestCase.cachedProcessEngine = null;
@@ -188,22 +190,42 @@ public class KeycloakUseGroupPathdAsGroupIdQueryTest extends AbstractKeycloakIde
 
 	public void testOrderByGroupId() {
 		List<Group> groupList = identityService.createGroupQuery().orderByGroupId().desc().list();
-		assertEquals(9, groupList.size());
+		assertEquals(18, groupList.size());
 		assertTrue(groupList.get(0).getId().compareTo(groupList.get(1).getId()) > 0);
 		assertTrue(groupList.get(1).getId().compareTo(groupList.get(2).getId()) > 0);
 		assertTrue(groupList.get(2).getId().compareTo(groupList.get(3).getId()) > 0);
 		assertTrue(groupList.get(5).getId().compareTo(groupList.get(6).getId()) > 0);
 		assertTrue(groupList.get(6).getId().compareTo(groupList.get(7).getId()) > 0);
+		assertTrue(groupList.get(7).getId().compareTo(groupList.get(8).getId()) > 0);
+		assertTrue(groupList.get(8).getId().compareTo(groupList.get(9).getId()) > 0);
+		assertTrue(groupList.get(9).getId().compareTo(groupList.get(10).getId()) > 0);
+		assertTrue(groupList.get(10).getId().compareTo(groupList.get(11).getId()) > 0);
+		assertTrue(groupList.get(11).getId().compareTo(groupList.get(12).getId()) > 0);
+		assertTrue(groupList.get(12).getId().compareTo(groupList.get(13).getId()) > 0);
+		assertTrue(groupList.get(13).getId().compareTo(groupList.get(14).getId()) > 0);
+		assertTrue(groupList.get(14).getId().compareTo(groupList.get(15).getId()) > 0);
+		assertTrue(groupList.get(15).getId().compareTo(groupList.get(16).getId()) > 0);
+		assertTrue(groupList.get(16).getId().compareTo(groupList.get(17).getId()) > 0);
 	}
 
 	public void testOrderByGroupName() {
 		List<Group> groupList = identityService.createGroupQuery().orderByGroupName().list();
-		assertEquals(9, groupList.size());
+		assertEquals(18, groupList.size());
 		assertTrue(groupList.get(0).getName().compareTo(groupList.get(1).getName()) < 0);
 		assertTrue(groupList.get(1).getName().compareTo(groupList.get(2).getName()) < 0);
 		assertTrue(groupList.get(2).getName().compareTo(groupList.get(3).getName()) < 0);
 		assertTrue(groupList.get(5).getName().compareTo(groupList.get(6).getName()) < 0);
 		assertTrue(groupList.get(6).getName().compareTo(groupList.get(7).getName()) < 0);
+		assertTrue(groupList.get(7).getName().compareTo(groupList.get(8).getName()) < 0);
+		assertTrue(groupList.get(8).getName().compareTo(groupList.get(9).getName()) < 0);
+		assertTrue(groupList.get(9).getName().compareTo(groupList.get(10).getName()) < 0);
+		assertTrue(groupList.get(10).getName().compareTo(groupList.get(11).getName()) < 0);
+		assertTrue(groupList.get(11).getName().compareTo(groupList.get(12).getName()) < 0);
+		assertTrue(groupList.get(12).getName().compareTo(groupList.get(13).getName()) < 0);
+		assertTrue(groupList.get(13).getName().compareTo(groupList.get(14).getName()) < 0);
+		assertTrue(groupList.get(14).getName().compareTo(groupList.get(15).getName()) < 0);
+		assertTrue(groupList.get(15).getName().compareTo(groupList.get(16).getName()) < 0);
+		assertTrue(groupList.get(16).getName().compareTo(groupList.get(17).getName()) < 0);
 	}
 
 	// ------------------------------------------------------------------------

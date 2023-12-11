@@ -1,6 +1,9 @@
 package org.camunda.bpm.extension.keycloak;
 
-import static org.camunda.bpm.extension.keycloak.json.JsonUtil.*;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.findFirst;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.getJsonString;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.parseAsJsonArray;
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.parseAsJsonObjectAndGetMemberAsString;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
@@ -42,12 +45,14 @@ public class KeycloakIdentityProviderSession implements ReadOnlyIdentityProvider
 	protected KeycloakConfiguration keycloakConfiguration;
 	protected KeycloakRestTemplate restTemplate;
 	protected KeycloakContextProvider keycloakContextProvider;
-	
+
 	protected KeycloakUserService userService;
 	protected KeycloakGroupService groupService;
+	protected KeycloakTenantService tenantService;
 
 	protected QueryCache<CacheableKeycloakUserQuery, List<User>> userQueryCache;
 	protected QueryCache<CacheableKeycloakGroupQuery, List<Group>> groupQueryCache;
+	protected QueryCache<CacheableKeycloakTenantQuery, List<Tenant>> tenantQueryCache;
 	protected QueryCache<CacheableKeycloakCheckPasswordCall, Boolean> checkPasswordCache;
 
 	/**
@@ -57,21 +62,23 @@ public class KeycloakIdentityProviderSession implements ReadOnlyIdentityProvider
 	 * @param keycloakContextProvider Keycloak context provider
 	 */
 	public KeycloakIdentityProviderSession(
-					KeycloakConfiguration keycloakConfiguration, KeycloakRestTemplate restTemplate, KeycloakContextProvider keycloakContextProvider,
-					QueryCache<CacheableKeycloakUserQuery, List<User>> userQueryCache, QueryCache<CacheableKeycloakGroupQuery, List<Group>> groupQueryCache,
-					QueryCache<CacheableKeycloakCheckPasswordCall, Boolean> checkPasswordCache) {
+                    KeycloakConfiguration keycloakConfiguration, KeycloakRestTemplate restTemplate, KeycloakContextProvider keycloakContextProvider,
+                    QueryCache<CacheableKeycloakUserQuery, List<User>> userQueryCache, QueryCache<CacheableKeycloakGroupQuery, List<Group>> groupQueryCache,
+			        QueryCache<CacheableKeycloakTenantQuery, List<Tenant>> tenantQueryCache, QueryCache<CacheableKeycloakCheckPasswordCall, Boolean> checkPasswordCache) {
 		this.keycloakConfiguration = keycloakConfiguration;
 		this.restTemplate = restTemplate;
 		this.keycloakContextProvider = keycloakContextProvider;
-		
+
 		this.userService = new KeycloakUserService(keycloakConfiguration, restTemplate, keycloakContextProvider);
-		this.groupService = new  KeycloakGroupService(keycloakConfiguration, restTemplate, keycloakContextProvider);
+		this.groupService = new KeycloakGroupService(keycloakConfiguration, restTemplate, keycloakContextProvider);
+		this.tenantService = new KeycloakTenantService(keycloakConfiguration, restTemplate, keycloakContextProvider);
 
 		this.userQueryCache = userQueryCache;
 		this.groupQueryCache = groupQueryCache;
+		this.tenantQueryCache = tenantQueryCache;
 		this.checkPasswordCache = checkPasswordCache;
 	}
-	
+
 	@Override
 	public void flush() {
 		// nothing to do
@@ -82,10 +89,10 @@ public class KeycloakIdentityProviderSession implements ReadOnlyIdentityProvider
 		// nothing to do
 	}
 
-	//-------------------------------------------------------------------------
+	// -------------------------------------------------------------------------
 	// Users
-	//-------------------------------------------------------------------------
-	
+	// -------------------------------------------------------------------------
+
 	/**
 	 * {@inheritDoc}
 	 */
@@ -160,7 +167,7 @@ public class KeycloakIdentityProviderSession implements ReadOnlyIdentityProvider
 	 * @return list of matching users
 	 */
 	private List<User> doFindUserByQueryCriteria(CacheableKeycloakUserQuery userQuery) {
-		if (StringUtils.hasLength(userQuery.getGroupId())) {
+		if (StringUtils.hasLength(userQuery.getGroupId()) || StringUtils.hasLength(userQuery.getTenantId())) {
 			// search within the members of a single group
 			return userService.requestUsersByGroupId(userQuery);
 		} else {
@@ -168,7 +175,6 @@ public class KeycloakIdentityProviderSession implements ReadOnlyIdentityProvider
 		}
 	}
 
-	
 	/**
 	 * Get the user ID of the configured admin user. Enable configuration using username / email as well.
 	 * This prevents common configuration pitfalls and makes it consistent to other configuration options
@@ -182,18 +188,18 @@ public class KeycloakIdentityProviderSession implements ReadOnlyIdentityProvider
 	public String getKeycloakAdminUserId(String configuredAdminUserId) {
 		return userService.getKeycloakAdminUserId(configuredAdminUserId);
 	}
-	
-	//-------------------------------------------------------------------------
+
+	// -------------------------------------------------------------------------
 	// Login / Password check
-	//-------------------------------------------------------------------------
-	
+	// -------------------------------------------------------------------------
+
 	/**
 	 * {@inheritDoc}
 	 */
 	@Override
 	public boolean checkPassword(String userId, String password) {
-		return checkPasswordCache.getOrCompute(new CacheableKeycloakCheckPasswordCall(userId, password), 
-				(c) -> this.doCheckPassword(c.getUserId(), password));
+		return checkPasswordCache.getOrCompute(new CacheableKeycloakCheckPasswordCall(userId, password),
+				c -> this.doCheckPassword(c.getUserId(), password));
 	}
 
 	/**
@@ -213,7 +219,7 @@ public class KeycloakIdentityProviderSession implements ReadOnlyIdentityProvider
 		if (!StringUtils.hasLength(password)) {
 			return false;
 		}
-		
+
 		// Get Keycloak username for authentication
 		String userName;
 		try {
@@ -222,7 +228,7 @@ public class KeycloakIdentityProviderSession implements ReadOnlyIdentityProvider
 			KeycloakPluginLogger.INSTANCE.userNotFound(userId, aunfe);
 			return false;
 		}
-			
+
 		try {
 			HttpHeaders headers = new HttpHeaders();
 			headers.add(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_FORM_URLENCODED + ";charset=" + keycloakConfiguration.getCharset());
@@ -285,11 +291,11 @@ public class KeycloakIdentityProviderSession implements ReadOnlyIdentityProvider
 			throw hcee;
 		}
 	}
-	
-	//-------------------------------------------------------------------------
+
+	// -------------------------------------------------------------------------
 	// Groups
-	//-------------------------------------------------------------------------
-	
+	// -------------------------------------------------------------------------
+
 	/**
 	 * {@inheritDoc}
 	 */
@@ -378,14 +384,14 @@ public class KeycloakIdentityProviderSession implements ReadOnlyIdentityProvider
 		return groupService.getKeycloakAdminGroupId(configuredAdminGroupName);
 	}
 
-	//-------------------------------------------------------------------------
+	// -------------------------------------------------------------------------
 	// Tenants
-	//-------------------------------------------------------------------------
-	
+	// -------------------------------------------------------------------------
+
 	@Override
 	public TenantQuery createTenantQuery() {
-		return new KeycloakTenantQuery(org.camunda.bpm.engine.impl.context.Context.getProcessEngineConfiguration()
-				.getCommandExecutorTxRequired());
+		return new KeycloakTenantQuery(
+				org.camunda.bpm.engine.impl.context.Context.getProcessEngineConfiguration().getCommandExecutorTxRequired());
 	}
 
 	@Override
@@ -394,9 +400,63 @@ public class KeycloakIdentityProviderSession implements ReadOnlyIdentityProvider
 	}
 
 	@Override
-	public Tenant findTenantById(String id) {
-		// since multi-tenancy is currently not supported for the Keycloak plugin, always return null
-		return null;
+	public Tenant findTenantById(String tenantId) {
+		return createTenantQuery(org.camunda.bpm.engine.impl.context.Context.getCommandContext()).tenantId(tenantId).singleResult();
+
+	}
+
+	/**
+	 * find the number of tenants meeting given tenant query criteria.
+	 * 
+	 * @param tenantQuery
+	 *            the tenant query
+	 * @return number of matching tenants
+	 */
+	protected long findTenantCountByQueryCriteria(KeycloakTenantQuery tenantQuery) {
+		return findTenantByQueryCriteria(tenantQuery).size();
+	}
+
+	/**
+	 * find tenants meeting given tenant query criteria (with cache lookup and post processing).
+	 * 
+	 * @param tenantQuery
+	 *            the tenant query
+	 * @return list of matching tenants
+	 */
+	protected List<Tenant> findTenantByQueryCriteria(KeycloakTenantQuery tenantQuery) {
+		StringBuilder resultLogger = new StringBuilder();
+
+		if (KeycloakPluginLogger.INSTANCE.isDebugEnabled()) {
+			resultLogger.append("Keycloak tenant query results: [");
+		}
+
+		List<Tenant> allMatchingTenants = tenantQueryCache.getOrCompute(CacheableKeycloakTenantQuery.of(tenantQuery),
+				this::doFindTenantByQueryCriteria);
+
+		List<Tenant> processedTenants = tenantService.postProcessResults(tenantQuery, allMatchingTenants, resultLogger);
+
+		if (KeycloakPluginLogger.INSTANCE.isDebugEnabled()) {
+			resultLogger.append("]");
+			KeycloakPluginLogger.INSTANCE.tenantQueryResult(resultLogger.toString());
+		}
+
+		return processedTenants;
+	}
+
+	/**
+	 * find all tenants meeting given group query criteria (without cache lookup or post processing).
+	 * 
+	 * @param tenantQuery
+	 *            the tenant query
+	 * @return list of matching tenants
+	 */
+	private List<Tenant> doFindTenantByQueryCriteria(CacheableKeycloakTenantQuery tenantQuery) {
+		if (StringUtils.hasLength(tenantQuery.getUserId())) {
+			// if restriction on userId is provided, we're searching within the tenant of a single user
+			return tenantService.requestTenantsByUserId(tenantQuery);
+		} else {
+			return tenantService.requestTenantsWithoutUserId(tenantQuery);
+		}
 	}
 
 }
