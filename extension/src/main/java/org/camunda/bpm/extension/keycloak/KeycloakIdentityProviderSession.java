@@ -54,6 +54,7 @@ public class KeycloakIdentityProviderSession implements ReadOnlyIdentityProvider
 	protected QueryCache<CacheableKeycloakGroupQuery, List<Group>> groupQueryCache;
 	protected QueryCache<CacheableKeycloakTenantQuery, List<Tenant>> tenantQueryCache;
 	protected QueryCache<CacheableKeycloakCheckPasswordCall, Boolean> checkPasswordCache;
+	protected QueryCache<String, String> usernameCache;
 
 	/**
 	 * Creates a new session.
@@ -64,7 +65,8 @@ public class KeycloakIdentityProviderSession implements ReadOnlyIdentityProvider
 	public KeycloakIdentityProviderSession(
                     KeycloakConfiguration keycloakConfiguration, KeycloakRestTemplate restTemplate, KeycloakContextProvider keycloakContextProvider,
                     QueryCache<CacheableKeycloakUserQuery, List<User>> userQueryCache, QueryCache<CacheableKeycloakGroupQuery, List<Group>> groupQueryCache,
-			        QueryCache<CacheableKeycloakTenantQuery, List<Tenant>> tenantQueryCache, QueryCache<CacheableKeycloakCheckPasswordCall, Boolean> checkPasswordCache) {
+                    QueryCache<CacheableKeycloakTenantQuery, List<Tenant>> tenantQueryCache, QueryCache<CacheableKeycloakCheckPasswordCall, Boolean> checkPasswordCache, 
+                    QueryCache<String, String> usernameCache) {
 		this.keycloakConfiguration = keycloakConfiguration;
 		this.restTemplate = restTemplate;
 		this.keycloakContextProvider = keycloakContextProvider;
@@ -77,6 +79,9 @@ public class KeycloakIdentityProviderSession implements ReadOnlyIdentityProvider
 		this.groupQueryCache = groupQueryCache;
 		this.tenantQueryCache = tenantQueryCache;
 		this.checkPasswordCache = checkPasswordCache;
+
+		this.usernameCache = usernameCache;
+
 	}
 
 	@Override
@@ -176,9 +181,39 @@ public class KeycloakIdentityProviderSession implements ReadOnlyIdentityProvider
 	}
 
 	/**
-	 * Get the user ID of the configured admin user. Enable configuration using username / email as well.
-	 * This prevents common configuration pitfalls and makes it consistent to other configuration options
-	 * like the flags 'useUsernameAsCamundaUserId' and 'useEmailAsCamundaUserId'.
+	 * Get the user ID of the given keycloak username. Enable configuration using username / email as well. This prevents common
+	 * configuration pitfalls and makes it consistent to other configuration options like the flags 'useUsernameAsCamundaUserId' and
+	 * 'useEmailAsCamundaUserId'.
+	 * 
+	 * @param username
+	 *            the keycloak username
+	 * @return the corresponding camunda user ID to use: either internal keycloak ID, username or email, depending on config
+	 * 
+	 * @see org.camunda.bpm.extension.keycloak.KeycloakUserService#getCamundaUserIdByKeycloakUsername(java.lang.String)
+	 */
+	public String getCamundaUserId(String username) {
+		return usernameCache.getOrCompute(username, this::doGetCamundaUserId);
+	}
+
+	/**
+	 * Get the user ID of the given keycloak username. Enable configuration using username / email as well. This prevents common
+	 * configuration pitfalls and makes it consistent to other configuration options like the flags 'useUsernameAsCamundaUserId' and
+	 * 'useEmailAsCamundaUserId'.
+	 * 
+	 * @param username
+	 *            the keycloak username
+	 * @return the corresponding camunda user ID to use: either internal keycloak ID, username or email, depending on config
+	 * 
+	 * @see org.camunda.bpm.extension.keycloak.KeycloakUserService#getCamundaUserIdByKeycloakUsername(java.lang.String)
+	 */
+	private String doGetCamundaUserId(String keycloakUsername) {
+		return userService.getCamundaUserIdByKeycloakUsername(keycloakUsername);
+	}
+
+	/**
+     * Get the user ID of the configured admin user. Enable configuration using username / email as well.
+     * This prevents common configuration pitfalls and makes it consistent to other configuration options
+     * like the flags 'useUsernameAsCamundaUserId' and 'useEmailAsCamundaUserId'.
 	 * 
 	 * @param configuredAdminUserId the originally configured admin user ID
 	 * @return the corresponding keycloak user ID to use: either internal keycloak ID, username or email, depending on config

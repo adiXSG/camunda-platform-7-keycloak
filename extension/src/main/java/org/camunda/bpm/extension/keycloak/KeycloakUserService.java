@@ -114,6 +114,39 @@ public class KeycloakUserService extends KeycloakServiceBase {
 	}
 
 	/**
+	 * Get the user ID of the given {@code username}.
+	 * 
+	 * @param username
+	 *            the keycloak username
+	 * @return the corresponding keycloak user ID to use: either internal keycloak ID, username or email, depending on config
+	 */
+	public String getCamundaUserIdByKeycloakUsername(String username) {
+		try {
+			// check whether configured admin user ID can be resolved as username
+			try {
+				ResponseEntity<String> response = restTemplate.exchange(
+						keycloakConfiguration.getKeycloakAdminUrl() + "/users?username=" + username, HttpMethod.GET, String.class);
+				JsonObject user = findFirst(parseAsJsonArray(response.getBody()), "username", username);
+				if (user != null) {
+					if (keycloakConfiguration.isUseEmailAsCamundaUserId()) {
+						return getJsonString(user, "email");
+					}
+					if (keycloakConfiguration.isUseUsernameAsCamundaUserId()) {
+						return getJsonString(user, "username");
+					}
+					return getJsonString(user, "id");
+				}
+			} catch (JsonException je) {
+				// username not found: fall through
+			}
+			// keycloak admin user does not exist :-(
+			throw new IdentityProviderException("Username " + username + " does not exist.");
+		} catch (RestClientException rce) {
+			throw new IdentityProviderException("Unable to read data of username " + username, rce);
+		}
+	}
+
+	/**
 	 * Requests users of a specific group.
 	 * @param query the user query - including a groupId criteria
 	 * @return list of matching users

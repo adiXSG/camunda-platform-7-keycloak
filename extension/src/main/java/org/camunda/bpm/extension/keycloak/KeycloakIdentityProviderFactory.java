@@ -47,6 +47,8 @@ public class KeycloakIdentityProviderFactory implements SessionFactory {
 	protected QueryCache<CacheableKeycloakTenantQuery, List<Tenant>> tenantQueryCache;
 	protected QueryCache<CacheableKeycloakCheckPasswordCall, Boolean> checkPasswordCache;
 
+	protected QueryCache<String, String> usernameCache;
+
 	protected KeycloakRestTemplate restTemplate = new KeycloakRestTemplate();
 
 	/**
@@ -66,6 +68,8 @@ public class KeycloakIdentityProviderFactory implements SessionFactory {
 		this.setGroupQueryCache(CacheFactory.create(cacheConfiguration));
 		this.setTenantQueryCache(CacheFactory.create(cacheConfiguration));
 		this.setCheckPasswordCache(CacheFactory.create(loginCacheConfiguration));
+		
+		this.setUsernameCache(CacheFactory.create(cacheConfiguration));
 
 		// Create REST template with pooling HTTP client
 		PoolingHttpClientConnectionManagerBuilder connectionManagerBuilder = PoolingHttpClientConnectionManagerBuilder
@@ -143,7 +147,7 @@ public class KeycloakIdentityProviderFactory implements SessionFactory {
 	}
 
 	/**
-	 * @param tenantQueryCache set the cache for the queryCache for tenant queries
+	 * @param tenantQueryCache set the queryCache for tenant queries
 	 */
 	public void setTenantQueryCache(QueryCache<CacheableKeycloakTenantQuery, List<Tenant>> tenantQueryCache) {
 		this.tenantQueryCache = tenantQueryCache;
@@ -157,6 +161,14 @@ public class KeycloakIdentityProviderFactory implements SessionFactory {
 	}
 
 	/**
+	 * @param usernameCache
+	 *            set the cache for the keycloak username / camunda user id mapping
+	 */
+	public void setUsernameCache(QueryCache<String, String> usernameCache) {
+		this.usernameCache = usernameCache;
+	}
+
+	/**
 	 * immediately clear entries from cache
 	 */
 	public void clearCache() {
@@ -164,6 +176,8 @@ public class KeycloakIdentityProviderFactory implements SessionFactory {
 		this.groupQueryCache.clear();
 		this.tenantQueryCache.clear();
 		this.checkPasswordCache.clear();
+
+		this.usernameCache.clear();
 	}
 
 	/**
@@ -172,7 +186,7 @@ public class KeycloakIdentityProviderFactory implements SessionFactory {
 	@Override
 	public Session openSession() {
 		return new KeycloakIdentityProviderSession(keycloakConfiguration, restTemplate, keycloakContextProvider, userQueryCache,
-				groupQueryCache, tenantQueryCache, checkPasswordCache);
+				groupQueryCache, tenantQueryCache, checkPasswordCache, usernameCache);
 	}
 
 }
