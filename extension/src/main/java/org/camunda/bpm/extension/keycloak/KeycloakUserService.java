@@ -124,6 +124,9 @@ public class KeycloakUserService extends KeycloakServiceBase {
 		try {
 			// check whether configured admin user ID can be resolved as username
 			try {
+				if (keycloakConfiguration.isUseUsernameAsCamundaUserId())
+					return username;
+
 				ResponseEntity<String> response = restTemplate.exchange(
 						keycloakConfiguration.getKeycloakAdminUrl() + "/users?username=" + username, HttpMethod.GET, String.class);
 				JsonObject user = findFirst(parseAsJsonArray(response.getBody()), "username", username);
