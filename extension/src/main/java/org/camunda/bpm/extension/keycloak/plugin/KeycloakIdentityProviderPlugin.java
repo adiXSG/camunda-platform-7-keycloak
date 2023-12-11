@@ -36,7 +36,7 @@ public class KeycloakIdentityProviderPlugin extends KeycloakConfiguration implem
 	
 	private boolean authorizationEnabled;
 	
-	private KeycloakIdentityProviderFactory keycloakIdentityProviderFactory = null;
+	protected KeycloakIdentityProviderFactory keycloakIdentityProviderFactory = null;
 
 	/** custom interceptors to modify behaviour of default KeycloakRestTemplate */
 	private List<ClientHttpRequestInterceptor> customHttpRequestInterceptors = Collections.emptyList();
