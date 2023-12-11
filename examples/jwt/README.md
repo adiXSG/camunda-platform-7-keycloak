@@ -33,7 +33,7 @@ Your dependency for the Keycloak Identity Provider still is:
 
 ```xml
     <dependency>
-        <groupId>org.camunda.bpm.extension</groupId>
+        <groupId>ch.crossworks.scc.bpm.extension</groupId>
         <artifactId>camunda-platform-7-keycloak</artifactId>
     </dependency>
 ```
@@ -46,7 +46,7 @@ First of all we need an additional dependency which does most of the magic:
 
 ```xml
     <dependency>
-        <groupId>org.camunda.bpm.extension</groupId>
+        <groupId>ch.crossworks.scc.bpm.extension</groupId>
         <artifactId>camunda-platform-7-keycloak-jwt</artifactId>
     </dependency>
 ```

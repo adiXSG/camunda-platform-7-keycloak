@@ -2,13 +2,13 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<parent>
-	  <groupId>org.camunda.bpm.extension</groupId>
+	  <groupId>ch.crossworks.scc.bpm.extension</groupId>
 	  <artifactId>camunda-platform-7-keycloak-root</artifactId>
 		<version>7.20.2-SNAPSHOT</version>
 	</parent>
 
     <artifactId>camunda-platform-7-keycloak</artifactId>
-
+    
 	<packaging>jar</packaging>
     <name>Camunda Platform 7 - engine plugins - identity - keycloak - extension</name>
 	<description>A Camunda 7 Identity Provider Plugin for Keycloak</description>
@@ -45,7 +45,6 @@
 		<dependency>
 			<groupId>commons-codec</groupId>
 			<artifactId>commons-codec</artifactId>
-			<version>${version.commons-codec}</version>
 		</dependency>
 
         <dependency>
@@ -73,7 +72,6 @@
 		<dependency>
 			<groupId>org.awaitility</groupId>
 			<artifactId>awaitility</artifactId>
-			<version>4.2.0</version>
 			<scope>test</scope>
 		</dependency>
 
@@ -89,6 +87,7 @@
 		<plugins>
 			<plugin>
 				<artifactId>maven-surefire-plugin</artifactId>
+				<version>2.12.4</version>
 				<configuration>
 					<failIfNoTests>false</failIfNoTests>
 					<trimStackTrace>false</trimStackTrace>

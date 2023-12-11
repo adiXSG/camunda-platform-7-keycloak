@@ -11,7 +11,7 @@
     <relativePath />
   </parent>
 
-  <groupId>org.camunda.bpm.extension</groupId>
+  <groupId>ch.crossworks.scc.bpm.extension</groupId>
   <artifactId>camunda-platform-7-keycloak-root</artifactId>
   <version>7.20.2-SNAPSHOT</version>
   <packaging>pom</packaging>
@@ -48,19 +48,29 @@
     <tag>HEAD</tag>
   </scm>
 
-  <!-- repositories used for distribution of releases and snapshots, DO NOT CHANGE -->
+  <!-- repositories used for distribution of releases and snapshots, DO NOT CHANGE -->		
   <distributionManagement>
     <repository>
+      <!-- 
       <id>camunda-nexus</id>
       <name>camunda bpm community extensions</name>
       <url>https://artifacts.camunda.com/artifactory/camunda-bpm-community-extensions/</url>
+      -->
+      <id>cxw-nexus</id>
+      <url>https://nexus.k8s.cxw.local/repository/maven-public/</url>
     </repository>
     <snapshotRepository>
+      <!-- 
       <id>camunda-nexus</id>
       <name>camunda bpm community extensions snapshots</name>
       <url>https://artifacts.camunda.com/artifactory/camunda-bpm-community-extensions-snapshots/</url>
+      -->
       <!-- for maven 2 compatibility -->
+      <!-- 
       <uniqueVersion>true</uniqueVersion>
+      -->
+      <id>cxw-nexus</id>
+      <url>https://nexus.k8s.cxw.local/repository/maven-snapshots/</url>
     </snapshotRepository>
   </distributionManagement>
 
@@ -90,13 +100,13 @@
       </dependency>
       <!-- modules -->
       <dependency>
-        <groupId>org.camunda.bpm.extension</groupId>
+        <groupId>ch.crossworks.scc.bpm.extension</groupId>
         <artifactId>camunda-platform-7-keycloak</artifactId>
         <version>${project.version}</version>
         <scope>provided</scope>
       </dependency>
       <dependency>
-        <groupId>org.camunda.bpm.extension</groupId>
+        <groupId>ch.crossworks.scc.bpm.extension</groupId>
         <artifactId>camunda-platform-7-keycloak-jwt</artifactId>
         <version>${project.version}</version>
         <scope>provided</scope>
@@ -104,21 +114,24 @@
     </dependencies>
   </dependencyManagement>
 
-  <repositories>
+  <!-- <repositories> -->
     <!-- Camunda Repository -->
+    <!--    
     <repository>
         <id>camunda-bpm</id>
         <name>Camunda Enterprise Maven Repository</name>
         <url>https://artifacts.camunda.com/artifactory/camunda-bpm/</url>
     </repository>
-    <!-- Camunda EE Repository 
+    -->
+    <!-- Camunda EE Repository -->
+    <!--    
     <repository>
         <id>camunda-bpm-ee</id>
         <name>Camunda Enterprise Maven Repository</name>
         <url>https://artifacts.camunda.com/artifactory/camunda-bpm-ee/</url>
     </repository>
-    -->
-  </repositories>
+  -->
+  <!-- </repositories> -->
 
   <build>
     <plugins>

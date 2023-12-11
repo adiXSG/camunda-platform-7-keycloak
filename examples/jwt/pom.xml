@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>org.camunda.bpm.extension.examples</groupId>
+        <groupId>ch.crossworks.scc.bpm.extension.examples</groupId>
         <artifactId>camunda-platform-7-keycloak-examples</artifactId>
         <version>7.20.2-SNAPSHOT</version>
     </parent>
@@ -36,12 +36,12 @@
 
         <!-- Keycloak Identity Prover Plugin  -->
         <dependency>
-            <groupId>org.camunda.bpm.extension</groupId>
+            <groupId>ch.crossworks.scc.bpm.extension</groupId>
             <artifactId>camunda-platform-7-keycloak</artifactId>
         </dependency>
 
         <dependency>
-            <groupId>org.camunda.bpm.extension</groupId>
+            <groupId>ch.crossworks.scc.bpm.extension</groupId>
             <artifactId>camunda-platform-7-keycloak-jwt</artifactId>
         </dependency>
 
@@ -98,20 +98,20 @@
 
     </dependencies>
 
+    <!--
     <repositories>
         <repository>
             <id>camunda-bpm-nexus</id>
             <name>Camunda Maven Repository</name>
             <url>https://artifacts.camunda.com/artifactory/public/</url>
         </repository>
-        <!--
         <repository>
             <id>camunda-bpm-ee</id>
             <name>Camunda Enterprise Maven Repository</name>
             <url>https://artifacts.camunda.com/artifactory/camunda-bpm-ee/</url>
         </repository>
-        -->
     </repositories>
+    -->
 
     <build>
         <finalName>${project.artifactId}</finalName>

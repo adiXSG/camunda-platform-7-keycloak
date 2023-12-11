@@ -133,7 +133,7 @@ Known limitations:
 Maven Dependencies:
 ```xml
 <dependency>
-    <groupId>org.camunda.bpm.extension</groupId>
+    <groupId>ch.crossworks.scc.bpm.extension</groupId>
     <artifactId>camunda-platform-7-keycloak</artifactId>
     <version>7.20.1</version>
 </dependency>
