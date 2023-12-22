@@ -6,7 +6,6 @@ import static org.camunda.bpm.extension.keycloak.json.JsonUtil.findFirst;
 import static org.camunda.bpm.extension.keycloak.json.JsonUtil.getJsonObjectAtIndex;
 import static org.camunda.bpm.extension.keycloak.json.JsonUtil.getJsonString;
 import static org.camunda.bpm.extension.keycloak.json.JsonUtil.parseAsJsonArray;
-import static org.camunda.bpm.extension.keycloak.json.JsonUtil.parseAsJsonObjectAndGetMemberAsString;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -16,7 +15,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -70,14 +71,8 @@ public class KeycloakUserService extends KeycloakServiceBase {
 			try {
 				ResponseEntity<String> response = restTemplate.exchange(
 						keycloakConfiguration.getKeycloakAdminUrl() + "/users/" + configuredAdminUserId, HttpMethod.GET, String.class);
-				if (keycloakConfiguration.isUseEmailAsCamundaUserId()) {
-					return parseAsJsonObjectAndGetMemberAsString(response.getBody(), "email");
-				}
-				if (keycloakConfiguration.isUseUsernameAsCamundaUserId()) {
-					return parseAsJsonObjectAndGetMemberAsString(response.getBody(), "username");
-				}
-				return parseAsJsonObjectAndGetMemberAsString(response.getBody(), "id");
-			} catch (RestClientException | JsonException ex) {
+				return extractUserName(response).orElseThrow();
+			} catch (RestClientException | JsonException | NoSuchElementException ex) {
 				// user ID not found: fall through
 			}
 			// check whether configured admin user ID can be resolved as email address
@@ -95,15 +90,9 @@ public class KeycloakUserService extends KeycloakServiceBase {
 						keycloakConfiguration.getKeycloakAdminUrl() + "/users?username=" + configuredAdminUserId, HttpMethod.GET, String.class);
 				JsonObject user = findFirst(parseAsJsonArray(response.getBody()), "username", configuredAdminUserId);
 				if (user != null) {
-					if (keycloakConfiguration.isUseEmailAsCamundaUserId()) {
-						return getJsonString(user, "email");
-					}
-					if (keycloakConfiguration.isUseUsernameAsCamundaUserId()) {
-						return getJsonString(user, "username");
-					}
-					return getJsonString(user, "id");
+					return extractUserName(user).orElseThrow();
 				}
-			} catch (JsonException je) {
+			} catch (JsonException | NoSuchElementException je) {
 				// username not found: fall through
 			}
 			// keycloak admin user does not exist :-(
@@ -131,15 +120,9 @@ public class KeycloakUserService extends KeycloakServiceBase {
 						keycloakConfiguration.getKeycloakAdminUrl() + "/users?username=" + username, HttpMethod.GET, String.class);
 				JsonObject user = findFirst(parseAsJsonArray(response.getBody()), "username", username);
 				if (user != null) {
-					if (keycloakConfiguration.isUseEmailAsCamundaUserId()) {
-						return getJsonString(user, "email");
-					}
-					if (keycloakConfiguration.isUseUsernameAsCamundaUserId()) {
-						return getJsonString(user, "username");
-					}
-					return getJsonString(user, "id");
+					return extractUserName(user).orElseThrow();
 				}
-			} catch (JsonException je) {
+			} catch (JsonException | NoSuchElementException je) {
 				// username not found: fall through
 			}
 			// keycloak admin user does not exist :-(
@@ -197,15 +180,10 @@ public class KeycloakUserService extends KeycloakServiceBase {
 					JsonArray searchResult = parseAsJsonArray(response.getBody());
 					for (int i = 0; i < searchResult.size(); i++) {
 						JsonObject keycloakUser = getJsonObjectAtIndex(searchResult, i);
-						if (keycloakConfiguration.isUseEmailAsCamundaUserId()
-								&& !StringUtils.hasLength(getJsonString(keycloakUser, "email"))) {
-							continue;
+						Optional<String> opt = extractUserName(keycloakUser);
+						if (opt.isPresent()) {
+							userLists.computeIfAbsent(keycloakId, id -> new HashSet<>()).add(keycloakUser);
 						}
-						if (keycloakConfiguration.isUseUsernameAsCamundaUserId()
-								&& !StringUtils.hasLength(getJsonString(keycloakUser, "username"))) {
-							continue;
-						}
-						userLists.computeIfAbsent(keycloakId, id -> new HashSet<>()).add(keycloakUser);
 					}
 				}
 			}
@@ -260,15 +238,11 @@ public class KeycloakUserService extends KeycloakServiceBase {
 			JsonArray searchResult = parseAsJsonArray(response.getBody());
 			for (int i = 0; i < searchResult.size(); i++) {
 				JsonObject keycloakUser = getJsonObjectAtIndex(searchResult, i);
-				if (keycloakConfiguration.isUseEmailAsCamundaUserId() && !StringUtils.hasLength(getJsonString(keycloakUser, "email"))) {
-					continue;
-				}
-				if (keycloakConfiguration.isUseUsernameAsCamundaUserId()
-						&& !StringUtils.hasLength(getJsonString(keycloakUser, "username"))) {
-					continue;
-				}
 
-				userList.add(transformUser(keycloakUser));
+				Optional<String> opt = extractUserName(keycloakUser);
+
+				if (opt.isPresent())
+					userList.add(transformUser(keycloakUser));
 			}
 
 		} catch (RestClientException | JsonException rce) {
@@ -379,6 +353,8 @@ public class KeycloakUserService extends KeycloakServiceBase {
 			String userSearch;
 			if (keycloakConfiguration.isUseEmailAsCamundaUserId()) {
 				userSearch = "/users?email=" + userId;
+			} else if (keycloakConfiguration.isUseCustomAttributeAsCamundaUserId()) {
+				userSearch = "/users?q=" + keycloakConfiguration.getUserIdCustomAttribute() + ":";
 			} else if (keycloakConfiguration.isUseUsernameAsCamundaUserId()) {
 				userSearch = "/users?username=" + userId;
 			} else {
@@ -387,7 +363,8 @@ public class KeycloakUserService extends KeycloakServiceBase {
 
 			ResponseEntity<String> response = restTemplate.exchange(keycloakConfiguration.getKeycloakAdminUrl() + userSearch,
 					HttpMethod.GET, String.class);
-			String result = (keycloakConfiguration.isUseEmailAsCamundaUserId() || keycloakConfiguration.isUseUsernameAsCamundaUserId())
+			String result = (keycloakConfiguration.isUseEmailAsCamundaUserId() || keycloakConfiguration.isUseUsernameAsCamundaUserId()
+					|| keycloakConfiguration.isUseCustomAttributeAsCamundaUserId())
 					? response.getBody()
 					: "[" + response.getBody() + "]";
 			return new ResponseEntity<>(result, response.getHeaders(), response.getStatusCode());
@@ -410,13 +387,9 @@ public class KeycloakUserService extends KeycloakServiceBase {
 	private User transformUser(JsonObject result) {
 		try {
 			UserEntity user = new UserEntity();
-			if (keycloakConfiguration.isUseEmailAsCamundaUserId()) {
-				user.setId(getJsonString(result, "email"));
-			} else if (keycloakConfiguration.isUseUsernameAsCamundaUserId()) {
-				user.setId(getJsonString(result, "username"));
-			} else {
-				user.setId(getJsonString(result, "id"));
-			}
+			extractUserName(result).ifPresent(user::setId);
+			if (user.getId() == null)
+				return null;
 			user.setFirstName(getJsonString(result, "firstName"));
 			user.setLastName(getJsonString(result, "lastName"));
 			if (!StringUtils.hasLength(user.getFirstName()) && !StringUtils.hasLength(user.getLastName())) {

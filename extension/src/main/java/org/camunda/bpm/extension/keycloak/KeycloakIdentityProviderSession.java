@@ -1,13 +1,13 @@
 package org.camunda.bpm.extension.keycloak;
 
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.createCustomAttributePredicate;
 import static org.camunda.bpm.extension.keycloak.json.JsonUtil.findFirst;
 import static org.camunda.bpm.extension.keycloak.json.JsonUtil.getJsonString;
-import static org.camunda.bpm.extension.keycloak.json.JsonUtil.parseAsJsonArray;
-import static org.camunda.bpm.extension.keycloak.json.JsonUtil.parseAsJsonObjectAndGetMemberAsString;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.util.List;
+import java.util.Optional;
 
 import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.identity.Group;
@@ -35,7 +35,10 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 /**
  * Keycloak {@link ReadOnlyIdentityProvider}.
@@ -301,24 +304,29 @@ public class KeycloakIdentityProviderSession implements ReadOnlyIdentityProvider
 			return userId;
 		}
 		try {
-			if (keycloakConfiguration.isUseEmailAsCamundaUserId()) {
-				ResponseEntity<String> response = restTemplate.exchange(
-					keycloakConfiguration.getKeycloakAdminUrl() + "/users?email=" + userId, HttpMethod.GET, String.class);
-				JsonObject result = findFirst(parseAsJsonArray(response.getBody()), "email", userId);
-				if (result != null) {
-					return getJsonString(result, "username");
-				}
-				throw new KeycloakUserNotFoundException(userId + " not found - email unknown");
-			} else {
-				ResponseEntity<String> response = restTemplate.exchange(
-						keycloakConfiguration.getKeycloakAdminUrl() + "/users/" + userId, HttpMethod.GET, String.class);
-				return parseAsJsonObjectAndGetMemberAsString(response.getBody(), "username");
-			}
+			final String pathAndQuery = keycloakConfiguration.isUseEmailAsCamundaUserId() ? "/users?email=" + userId
+					: keycloakConfiguration.isUseCustomAttributeAsCamundaUserId()
+							? "/users?q=" + keycloakConfiguration.getUserIdCustomAttribute() + ":" + userId
+							: "/users/" + userId;
+
+			ResponseEntity<String> response = restTemplate.exchange(keycloakConfiguration.getKeycloakAdminUrl() + pathAndQuery,
+					HttpMethod.GET, String.class);
+				
+			return findUserName(
+					keycloakConfiguration, response, userId)
+							.orElseThrow(
+									() -> new KeycloakUserNotFoundException(userId + " not found - "
+											+ (keycloakConfiguration.isUseEmailAsCamundaUserId() ? "email unknown"
+													: keycloakConfiguration.isUseCustomAttributeAsCamundaUserId()
+															? "custom attribute value unknown"
+															: " not found - ID unknown")));
+
 		} catch (JsonException je) {
-			throw new KeycloakUserNotFoundException(userId + 
-					(keycloakConfiguration.isUseEmailAsCamundaUserId() 
-					? " not found - email unknown" 
-					: " not found - ID unknown"), je);
+			throw new KeycloakUserNotFoundException(userId + " not found - "
+					+ (keycloakConfiguration.isUseEmailAsCamundaUserId() ? "email unknown"
+							: keycloakConfiguration.isUseCustomAttributeAsCamundaUserId() ? "custom attribute value unknown"
+									: " not found - ID unknown"),
+					je);
 		} catch (HttpClientErrorException hcee) {
 			if (hcee.getStatusCode().equals(HttpStatus.NOT_FOUND)) {
 				throw new KeycloakUserNotFoundException(userId + " not found", hcee);
@@ -492,6 +500,30 @@ public class KeycloakIdentityProviderSession implements ReadOnlyIdentityProvider
 		} else {
 			return tenantService.requestTenantsWithoutUserId(tenantQuery);
 		}
+	}
+
+	private Optional<String> findUserName(KeycloakConfiguration config, ResponseEntity<String> response, String userId)
+			throws JsonException {
+		JsonElement json = JsonParser.parseString(response.getBody());
+		if (json instanceof JsonArray jsonArr) {
+			if (config.isUseEmailAsCamundaUserId()) {
+				JsonObject result = findFirst(jsonArr, "email", userId);
+				if (result != null) {
+					return Optional.ofNullable(getJsonString(result, "username"));
+				}
+			} else if (config.isUseCustomAttributeAsCamundaUserId()) {
+				final String attr = config.getUserIdCustomAttribute();
+				if (!StringUtils.hasText(attr))
+					return Optional.empty();
+				JsonObject result = findFirst(jsonArr, createCustomAttributePredicate(attr, userId));
+				if (result != null) {
+					return Optional.ofNullable(getJsonString(result, "username"));
+				}
+			}
+		} else if (json instanceof JsonObject jsonObject) {
+			return Optional.ofNullable(getJsonString(jsonObject, "username"));
+		}
+		return Optional.empty();
 	}
 
 }

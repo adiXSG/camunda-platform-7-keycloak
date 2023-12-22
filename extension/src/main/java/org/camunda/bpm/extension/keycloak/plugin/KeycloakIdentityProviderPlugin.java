@@ -139,26 +139,27 @@ public class KeycloakIdentityProviderPlugin extends KeycloakConfiguration implem
 	 */
 	private void checkMandatoryConfigurationParameters(ProcessEngineConfigurationImpl processEngineConfiguration) {
 		List<String> missing = new ArrayList<>();
-		if (StringUtils.isEmpty(keycloakIssuerUrl)) {
+		if (!StringUtils.hasText(keycloakIssuerUrl)) {
 			LOG.missingConfigurationParameter("keycloakIssuerUrl");
 			missing.add("keycloakIssuerUrl");
 		}
-		if (StringUtils.isEmpty(keycloakAdminUrl)) {
+		if (!StringUtils.hasText(keycloakAdminUrl)) {
 			LOG.missingConfigurationParameter("keycloakAdminUrl");
 			missing.add("keycloakAdminUrl");
 		}
-		if (StringUtils.isEmpty(clientId)) {
+		if (!StringUtils.hasText(clientId)) {
 			LOG.missingConfigurationParameter("clientId");
 			missing.add("clientId");
 		}
-		if (StringUtils.isEmpty(clientSecret)) {
+		if (!StringUtils.hasText(clientSecret)) {
 			LOG.missingConfigurationParameter("clientSecret");
 			missing.add("clientSecret");
 		}
-		if (StringUtils.isEmpty(charset)) {
+		if (!StringUtils.hasText(charset)) {
 			LOG.missingConfigurationParameter("charset");
 			missing.add("charset");
 		}
+
 		if (!missing.isEmpty()) {
 			LOG.activationError(getClass().getSimpleName(), processEngineConfiguration.getProcessEngineName(),
 					"missing mandatory configuration parameters " + missing.toString());
@@ -167,12 +168,22 @@ public class KeycloakIdentityProviderPlugin extends KeycloakConfiguration implem
 											+ ": - missing mandatory configuration parameters: " 
 											+ missing.toString());
 		}
-		if (isUseEmailAsCamundaUserId() && isUseUsernameAsCamundaUserId()) {
+
+		if (isUseCustomAttributeAsCamundaUserId() && !StringUtils.hasText(userIdCustomAttribute)) {
 			LOG.activationError(getClass().getSimpleName(), processEngineConfiguration.getProcessEngineName(),
-					"cannot use configuration parameters 'useUsernameAsCamundaUserId' AND 'useEmailAsCamundaUserId' at the same time");
+					"if 'useCustomAttributeAsCamundaUserId' is enabled, userIdCustomAttribute must also be set");
+			throw new IllegalStateException("Unable to initialize plugin " + getClass().getSimpleName()
+					+ ": - if 'useCustomAttributeAsCamundaUserId' is enabled, userIdCustomAttribute must also be set");
+		}
+
+		if (isUseEmailAsCamundaUserId() && isUseUsernameAsCamundaUserId()
+				|| isUseEmailAsCamundaUserId() && isUseCustomAttributeAsCamundaUserId()
+				|| isUseUsernameAsCamundaUserId() && isUseCustomAttributeAsCamundaUserId()) {
+			LOG.activationError(getClass().getSimpleName(), processEngineConfiguration.getProcessEngineName(),
+					"cannot use configuration parameters two or more of 'useUsernameAsCamundaUserId', 'useEmailAsCamundaUserId' and 'useCustomAttributeAsCamundaUserId' at the same time");
 			throw new IllegalStateException("Unable to initialize plugin "
 											+ getClass().getSimpleName()
-											+ ": - cannot use configuration parameters 'useUsernameAsCamundaUserId' AND 'useEmailAsCamundaUserId' at the same time");
+					+ ": - cannot use configuration parameters two or more of 'useUsernameAsCamundaUserId', 'useEmailAsCamundaUserId' and 'useCustomAttributeAsCamundaUserId' at the same time");
 		}
 		if (!Charset.isSupported(charset)) {
 			throw new IllegalStateException("Unable to initialize plugin "

@@ -1,5 +1,7 @@
 package org.camunda.bpm.extension.keycloak.json;
 
+import java.util.function.Predicate;
+
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -196,6 +198,36 @@ public class JsonUtil {
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * Finds the first element in a JsonArray list, where a given attribute matches a given name.
+	 * 
+	 * @param list
+	 *            the JsonArray list
+	 * @param predicate
+	 *            the predicate to test the JsonObject against
+	 * @return matching JsonObject element if found, {@code null} otherwise
+	 */
+	public static JsonObject findFirst(JsonArray list, Predicate<JsonObject> predicate) {
+		for (int i = 0; i < list.size(); i++) {
+			JsonObject result = list.get(i).getAsJsonObject();
+			if (predicate.test(result)) {
+				return result;
+			}
+		}
+		return null;
+	}
+
+	public static Predicate<JsonObject> createCustomAttributePredicate(final String attributeName, String username) {
+		return o -> {
+			try {
+				return ((JsonArray) o.getAsJsonObject("attributes").get(attributeName)).get(0).getAsString().equals(username);
+			} catch (Exception e) {
+				// ignore errors
+				return false;
+			}
+		};
 	}
 
 }

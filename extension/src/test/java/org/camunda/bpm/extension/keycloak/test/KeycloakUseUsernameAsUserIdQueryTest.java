@@ -26,12 +26,13 @@ public class KeycloakUseUsernameAsUserIdQueryTest extends AbstractKeycloakIdenti
 	    return new TestSetup(new TestSuite(KeycloakUseUsernameAsUserIdQueryTest.class)) {
 
 	    	// @BeforeClass
-	        protected void setUp() throws Exception {
+	        @Override
+			protected void setUp() throws Exception {
 	    		// setup Keycloak special test users
 	        	// -------------------------------------
 	    		HttpHeaders headers = authenticateKeycloakAdmin();
 	    		String realm = "test";
-	    		USER_IDS.add(createUser(headers, realm, "hans.wurst", null, null, null, null));
+				USER_IDS.add(createUser(headers, realm, "hans.wurst", null, null, null, null, null));
 
 	    		ProcessEngineConfigurationImpl config = (ProcessEngineConfigurationImpl) ProcessEngineConfiguration
 	    				.createProcessEngineConfigurationFromResource("camunda.useUsernameAsCamundaUserId.cfg.xml");
@@ -40,7 +41,8 @@ public class KeycloakUseUsernameAsUserIdQueryTest extends AbstractKeycloakIdenti
 	        }
 	        
 	        // @AfterClass
-	        protected void tearDown() throws Exception {
+	        @Override
+			protected void tearDown() throws Exception {
 	    		PluggableProcessEngineTestCase.cachedProcessEngine.close();
 	    		PluggableProcessEngineTestCase.cachedProcessEngine = null;
 

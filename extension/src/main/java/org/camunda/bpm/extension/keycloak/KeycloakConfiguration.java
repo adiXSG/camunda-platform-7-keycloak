@@ -27,6 +27,16 @@ public class KeycloakConfiguration {
 	protected boolean useEmailAsCamundaUserId = false;
 
 	/**
+	 * Whether to use an attribute as Camunda user ID. The Attribute must be defined in config key userIdcustomAttribute
+	 */
+	protected boolean useCustomAttributeAsCamundaUserId = false;
+
+	/**
+	 * The attribute name to use as Camunda user ID. Only relevant if useCustomAttributeAsCamundaUserId is set to {@code true}.
+	 */
+	protected String userIdCustomAttribute = "LDAP_ID";
+
+	/**
 	 * Whether to use the username attribute as Camunda user ID. Set keycloak.principal-attribute=preferred_username*
 	 */
 	protected boolean useUsernameAsCamundaUserId = false;
@@ -182,10 +192,41 @@ public class KeycloakConfiguration {
 	}
 
 	/**
-	 * @param useEmailAsCamundaUserId the useEmailAsCamundaUserId to set
+	 * @param useEmailAsCamundaUserId
+	 *            the useEmailAsCamundaUserId to set
 	 */
 	public void setUseEmailAsCamundaUserId(boolean useEmailAsCamundaUserId) {
 		this.useEmailAsCamundaUserId = useEmailAsCamundaUserId;
+	}
+
+	/**
+	 * @return the useAttributeAsCamundaUserId
+	 */
+	public boolean isUseCustomAttributeAsCamundaUserId() {
+		return useCustomAttributeAsCamundaUserId;
+	}
+
+	/**
+	 * @param useAttributeAsCamundaUserId
+	 *            the useAttributeAsCamundaUserId to set
+	 */
+	public void setUseCustomAttributeAsCamundaUserId(boolean useAttributeAsCamundaUserId) {
+		this.useCustomAttributeAsCamundaUserId = useAttributeAsCamundaUserId;
+	}
+
+	/**
+	 * @return the userIdcustomAttribute
+	 */
+	public String getUserIdCustomAttribute() {
+		return userIdCustomAttribute;
+	}
+
+	/**
+	 * @param userIdCustomAttribute
+	 *            the userIdCustomAttribute to set
+	 */
+	public void setUserIdCustomAttribute(String userIdCustomAttribute) {
+		this.userIdCustomAttribute = userIdCustomAttribute;
 	}
 
 	/**

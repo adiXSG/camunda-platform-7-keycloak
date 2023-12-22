@@ -2,6 +2,7 @@ package org.camunda.bpm.extension.keycloak.test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.identity.Group;
@@ -34,10 +35,12 @@ public class KeycloakMassDataTest extends AbstractKeycloakIdentityProviderTest {
 	    		HttpHeaders headers = authenticateKeycloakAdmin();
 	    		String realm = "test";
 	    		for (int i = 0; i < 60; i++) {
-	    			USER_IDS.add(createUser(headers, realm, "test.user" + i, "Test" + i, "User Test" + i, "test.user" + i + "@test.info", "test"));
+					USER_IDS.add(createUser(headers, realm, "test.user" + i, "Test" + i, "User Test" + i, "test.user" + i + "@test.info",
+							"test", UUID.randomUUID().toString()));
 	    		}
 	    		for (int i = 0; i < 100; i++) {
-	    			USER_IDS.add(createUser(headers, realm, "user.test" + i, "UTest" + i, "User Test" + i, "utest.user" + i + "@test.info", "test"));
+					USER_IDS.add(createUser(headers, realm, "user.test" + i, "UTest" + i, "User Test" + i, "utest.user" + i + "@test.info",
+							"test", UUID.randomUUID().toString()));
 	    		}
 	    		USER_IDS.forEach(u -> assignUserGroup(headers, realm, u, GROUP_ID_MANAGER));
 	    		

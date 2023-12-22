@@ -6,6 +6,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ResourceBundle;
+import java.util.UUID;
 
 import javax.net.ssl.SSLContext;
 
@@ -64,6 +65,14 @@ public abstract class AbstractKeycloakIdentityProviderTest extends PluggableProc
 	protected static String USER_ID_CAMUNDA_ADMIN;
 	protected static String USER_ID_TEAMLEAD;
 	protected static String USER_ID_MANAGER;
+
+	protected static String CUSTOM_ATT_CAMUNDA_ADMIN;
+	protected static String CUSTOM_ATT_TEAMLEAD;
+	protected static String CUSTOM_ATT_MANAGER;
+	protected static String CUSTOM_ATT_HIERARCHY;
+	protected static String CUSTOM_ATT_TENANT_1_2;
+	protected static String CUSTOM_ATT_TENANT_2;
+	protected static String CUSTOM_ATT_TENANT_3;
 
 	protected static String GROUP_ID_HIERARCHY_ROOT;
 	protected static String GROUP_ID_HIERARCHY_CHILD1;
@@ -237,13 +246,19 @@ public abstract class AbstractKeycloakIdentityProviderTest extends PluggableProc
 		GROUP_ID_SYSTEM_READONLY = createGroup(headers, realm, "cam-read-only", true);
 
 		// Create Users
-		USER_ID_CAMUNDA_ADMIN = createUser(headers, realm, "camunda", "Admin", "Camunda", "camunda@accso.de", "camunda1!");
+		CUSTOM_ATT_CAMUNDA_ADMIN = UUID.randomUUID().toString();
+		USER_ID_CAMUNDA_ADMIN = createUser(headers, realm, "camunda", "Admin", "Camunda", "camunda@accso.de", "camunda1!",
+				CUSTOM_ATT_CAMUNDA_ADMIN);
 		assignUserGroup(headers, realm, USER_ID_CAMUNDA_ADMIN, GROUP_ID_ADMIN);
 
-		USER_ID_TEAMLEAD = createUser(headers, realm, "hans.mustermann", "Hans", "Mustermann", "hans.mustermann@tradermail.info", "äöüÄÖÜ");
+		CUSTOM_ATT_TEAMLEAD = UUID.randomUUID().toString();
+		USER_ID_TEAMLEAD = createUser(headers, realm, "hans.mustermann", "Hans", "Mustermann", "hans.mustermann@tradermail.info", "äöüÄÖÜ",
+				CUSTOM_ATT_TEAMLEAD);
 		assignUserGroup(headers, realm, USER_ID_TEAMLEAD, GROUP_ID_TEAMLEAD);
 
-		USER_ID_MANAGER = createUser(headers, realm, "gunnar.von-der-beck@accso.de", "Gunnar", "von der Beck", "gunnar.von-der-beck@accso.de", null);
+		CUSTOM_ATT_MANAGER = UUID.randomUUID().toString();
+		USER_ID_MANAGER = createUser(headers, realm, "gunnar.von-der-beck@accso.de", "Gunnar", "von der Beck",
+				"gunnar.von-der-beck@accso.de", null, CUSTOM_ATT_MANAGER);
 		assignUserGroup(headers, realm, USER_ID_MANAGER, GROUP_ID_MANAGER);
 		assignUserGroup(headers, realm, USER_ID_MANAGER, GROUP_ID_TEAMLEAD);
 
@@ -255,7 +270,9 @@ public abstract class AbstractKeycloakIdentityProviderTest extends PluggableProc
 		GROUP_ID_HIERARCHY_SUBCHILD2 = createGroup(headers, realm, "subchild2", false, GROUP_ID_HIERARCHY_CHILD2);
 
 		// Create user with access to parts of hierarchy
-		USER_ID_HIERARCHY = createUser(headers, realm, "johnfoo", "John", "Foo", "johnfoo@gmail.com", "!§$%&/()=?#'-_.:,;+*~@€");
+		CUSTOM_ATT_HIERARCHY = UUID.randomUUID().toString();
+		USER_ID_HIERARCHY = createUser(headers, realm, "johnfoo", "John", "Foo", "johnfoo@gmail.com", "!§$%&/()=?#'-_.:,;+*~@€",
+				CUSTOM_ATT_HIERARCHY);
 		assignUserGroup(headers, realm, USER_ID_HIERARCHY, GROUP_ID_HIERARCHY_CHILD2);
 		assignUserGroup(headers, realm, USER_ID_HIERARCHY, GROUP_ID_HIERARCHY_SUBCHILD1);
 
@@ -269,17 +286,22 @@ public abstract class AbstractKeycloakIdentityProviderTest extends PluggableProc
 		GROUP_ID_TENANT_TENANT3_USERS = createGroup(headers, realm, "all-users-tenant-3", false, GROUP_ID_TENANT_TENANT3);
 		GROUP_ID_TENANT_TENANT3_TEAM = createGroup(headers, realm, "tenant-3-team", false, GROUP_ID_TENANT_TENANT3_USERS);
 
-		USER_ID_TENANT_1_2 = createUser(headers, realm, "maxmiller", "Max", "Miller", "max.miller@foo.bar", "*ç8989*ç00!c!!");
+		CUSTOM_ATT_TENANT_1_2 = UUID.randomUUID().toString();
+		USER_ID_TENANT_1_2 = createUser(headers, realm, "maxmiller", "Max", "Miller", "max.miller@foo.bar", "*ç8989*ç00!c!!",
+				CUSTOM_ATT_TENANT_1_2);
 		assignUserGroup(headers, realm, USER_ID_TENANT_1_2, GROUP_ID_TENANT_ROOT);
 		assignUserGroup(headers, realm, USER_ID_TENANT_1_2, GROUP_ID_TENANT_TENANT1);
 		assignUserGroup(headers, realm, USER_ID_TENANT_1_2, GROUP_ID_TENANT_TENANT2);
 		assignUserGroup(headers, realm, USER_ID_TENANT_1_2, GROUP_ID_TENANT_TENANT1_USERS);
 		assignUserGroup(headers, realm, USER_ID_TENANT_1_2, GROUP_ID_TENANT_TENANT2_USERS);
-		USER_ID_TENANT_2 = createUser(headers, realm, "jostanner", "Jos", "Tanner", "jos.tanner@foo.bar", "asdf8ienn!$à[]");
+		CUSTOM_ATT_TENANT_2 = UUID.randomUUID().toString();
+		USER_ID_TENANT_2 = createUser(headers, realm, "jostanner", "Jos", "Tanner", "jos.tanner@foo.bar", "asdf8ienn!$à[]",
+				CUSTOM_ATT_TENANT_2);
 		assignUserGroup(headers, realm, USER_ID_TENANT_2, GROUP_ID_TENANT_ROOT);
 		assignUserGroup(headers, realm, USER_ID_TENANT_2, GROUP_ID_TENANT_TENANT1);
 		assignUserGroup(headers, realm, USER_ID_TENANT_2, GROUP_ID_TENANT_TENANT1_USERS);
-		USER_ID_TENANT_3 = createUser(headers, realm, "jd", "Jane", "Doe", "jane.doe@fbar.com", "dfppema?à!@");
+		CUSTOM_ATT_TENANT_3 = UUID.randomUUID().toString();
+		USER_ID_TENANT_3 = createUser(headers, realm, "jd", "Jane", "Doe", "jane.doe@fbar.com", "dfppema?à!@", CUSTOM_ATT_TENANT_3);
 		assignUserGroup(headers, realm, USER_ID_TENANT_3, GROUP_ID_TENANT_ROOT);
 		assignUserGroup(headers, realm, USER_ID_TENANT_3, GROUP_ID_TENANT_TENANT3);
 		assignUserGroup(headers, realm, USER_ID_TENANT_3, GROUP_ID_TENANT_TENANT3_USERS);
@@ -287,7 +309,8 @@ public abstract class AbstractKeycloakIdentityProviderTest extends PluggableProc
 
 		// Create user and group named similar to the name of the Keycloak Client
 		GROUP_ID_SIMILAR_CLIENT_NAME = createGroup(headers, realm, "camunda-identity-service", false);
-		USER_ID_SIMILAR_CLIENT_NAME = createUser(headers, realm, "camunda-identity-service", "Identity", "Service", "identity.service@test.de", null);
+		USER_ID_SIMILAR_CLIENT_NAME = createUser(headers, realm, "camunda-identity-service", "Identity", "Service",
+				"identity.service@test.de", null, null);
 		assignUserGroup(headers, realm, USER_ID_SIMILAR_CLIENT_NAME, GROUP_ID_SIMILAR_CLIENT_NAME);
 
 		// --------------------------------------------------------------------
@@ -491,12 +514,15 @@ public abstract class AbstractKeycloakIdentityProviderTest extends PluggableProc
 	 * @return the user ID
 	 * @throws JSONException in case of errors
 	 */
-	static String createUser(HttpHeaders headers, String realm, String userName, String firstName, String lastName, String email, String password) throws JSONException {
+	static String createUser(HttpHeaders headers, String realm, String userName, String firstName, String lastName, String email,
+			String password, String customAttributeValue) throws JSONException {
 		// create user
 		StringBuffer userData = new StringBuffer( "{\"id\":null,\"username\":\""+ userName + "\",\"enabled\":true,\"totp\":false,\"emailVerified\":false,");
 		if (firstName != null) userData.append("\"firstName\":\"" + firstName + "\",");
 		if (lastName != null) userData.append("\"lastName\":\"" + lastName + "\",");
 		if (email != null) userData.append("\"email\":\"" + email + "\",");
+		if (customAttributeValue != null)
+			userData.append("\"attributes\":{\"CustomAttribute\":[\"" + customAttributeValue + "\"]},");
 		userData.append("\"disableableCredentialTypes\":[\"password\"],\"requiredActions\":[],\"federatedIdentities\":[],\"notBefore\":0,\"access\":{\"manageGroupMembership\":true,\"view\":true,\"mapRoles\":true,\"impersonate\":true,\"manage\":true}}");
 		HttpEntity<String> request = new HttpEntity<>(userData.toString(), headers);
 	    ResponseEntity<String> response = restTemplate.postForEntity(KEYCLOAK_URL + "/admin/realms/" + realm + "/users", request, String.class);

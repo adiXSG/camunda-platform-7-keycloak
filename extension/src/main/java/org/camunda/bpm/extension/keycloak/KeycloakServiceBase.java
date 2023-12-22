@@ -1,10 +1,10 @@
 package org.camunda.bpm.extension.keycloak;
 
+import static org.camunda.bpm.extension.keycloak.json.JsonUtil.createCustomAttributePredicate;
 import static org.camunda.bpm.extension.keycloak.json.JsonUtil.findFirst;
 import static org.camunda.bpm.extension.keycloak.json.JsonUtil.getJsonArray;
 import static org.camunda.bpm.extension.keycloak.json.JsonUtil.getJsonObjectAtIndex;
 import static org.camunda.bpm.extension.keycloak.json.JsonUtil.getJsonString;
-import static org.camunda.bpm.extension.keycloak.json.JsonUtil.parseAsJsonArray;
 import static org.camunda.bpm.extension.keycloak.json.JsonUtil.parseAsJsonObject;
 import static org.camunda.bpm.extension.keycloak.json.JsonUtil.parseAsJsonObjectAndGetMemberAsString;
 
@@ -18,6 +18,8 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.Set;
 
 import org.camunda.bpm.engine.authorization.Permission;
@@ -35,7 +37,9 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 /**
  * Base class for services implementing user / group queries against Keycloak.
@@ -76,6 +80,8 @@ public abstract class KeycloakServiceBase {
 		String userSearch;
 		if (keycloakConfiguration.isUseEmailAsCamundaUserId()) {
 			userSearch= "/users?email=";
+		} else if (keycloakConfiguration.isUseCustomAttributeAsCamundaUserId()) {
+			userSearch = "/users?q=" + keycloakConfiguration.getUserIdCustomAttribute() + ":";
 		} else if (keycloakConfiguration.isUseUsernameAsCamundaUserId()) {
 			userSearch="/users?username=";
 		} else {
@@ -92,21 +98,13 @@ public abstract class KeycloakServiceBase {
 					HttpMethod.GET,
 					keycloakContextProvider.createApiRequestEntity(),
 					String.class);
-			JsonArray resultList = parseAsJsonArray(response.getBody());
-			JsonObject result = findFirst(resultList,
-					keycloakConfiguration.isUseUsernameAsCamundaUserId() ? "username" : "email",
-					userId);
-			if (result != null) {
-				return getJsonString(result, "id");
-			}
+			return getJsonString(findUser(response, userId).orElseThrow(), "id");
+
+		} catch (HttpClientErrorException.NotFound | JsonException | NoSuchElementException je) {
 			throw new KeycloakUserNotFoundException(userId + 
 					(keycloakConfiguration.isUseEmailAsCamundaUserId() 
-					? " not found - email unknown" 
-					: " not found - username unknown"));
-		} catch (HttpClientErrorException.NotFound | JsonException je) {
-			throw new KeycloakUserNotFoundException(userId + 
-					(keycloakConfiguration.isUseEmailAsCamundaUserId() 
-					? " not found - email unknown" 
+							? " not found - email unknown"
+							: keycloakConfiguration.isUseCustomAttributeAsCamundaUserId() ? "custom attribute value unknown"
 					: " not found - username unknown"), je);
 		}
 		catch (UnsupportedEncodingException e) {
@@ -342,4 +340,70 @@ public abstract class KeycloakServiceBase {
 		}
 		return commonElements;
 	}
+
+	public Optional<JsonObject> findUser(ResponseEntity<String> response, String userId)
+			throws JsonException {
+		return findUser(JsonParser.parseString(response.getBody()), userId);
+	}
+
+	public Optional<JsonObject> findUser(JsonElement json, String userId) throws JsonException {
+		if (json instanceof JsonArray jsonArr) {
+			if (keycloakConfiguration.isUseEmailAsCamundaUserId()) {
+				JsonObject result = findFirst(jsonArr, "email", userId);
+				return Optional.ofNullable(result);
+			} else if (keycloakConfiguration.isUseCustomAttributeAsCamundaUserId()) {
+				JsonObject result = findFirst(jsonArr,
+						createCustomAttributePredicate(keycloakConfiguration.getUserIdCustomAttribute(), userId));
+				return Optional.ofNullable(result);
+			} else if (keycloakConfiguration.isUseUsernameAsCamundaUserId()) {
+				JsonObject result = findFirst(jsonArr, "username", userId);
+				return Optional.ofNullable(result);
+			} else {
+				JsonObject result = findFirst(jsonArr, "id", userId);
+				return Optional.ofNullable(result);
+			}
+		} else if (json instanceof JsonObject jsonObject) {
+			if (keycloakConfiguration.isUseUsernameAsCamundaUserId()) {
+				if (userId.equals(getJsonString(jsonObject, "username"))) {
+					return Optional.ofNullable(jsonObject);
+				}
+			} else {
+				if (userId.equals(getJsonString(jsonObject, "id"))) {
+					return Optional.ofNullable(jsonObject);
+				}
+			}
+		}
+		return Optional.empty();
+	}
+
+	public Optional<String> extractUserName(ResponseEntity<String> response) throws JsonException {
+		return extractUserName(JsonParser.parseString(response.getBody()));
+	}
+
+	public Optional<String> extractUserName(JsonElement jsonElement) throws JsonException {
+		if (jsonElement instanceof JsonArray jsonArray && !jsonArray.isEmpty()) {
+			jsonElement = jsonArray.get(0);
+		}
+		if (jsonElement instanceof JsonObject jsonObject) {
+			if (keycloakConfiguration.isUseEmailAsCamundaUserId()) {
+				return Optional.ofNullable(getJsonString(jsonObject, "email"));
+			} else if (keycloakConfiguration.isUseCustomAttributeAsCamundaUserId()) {
+				String attr = keycloakConfiguration.getUserIdCustomAttribute();
+				JsonObject attributes = jsonObject.getAsJsonObject("attributes");
+				if (attributes == null || !StringUtils.hasText(attr))
+					return Optional.empty();
+
+				JsonArray attrVal = getJsonArray(attributes, attr);
+				if (attrVal != null && !attrVal.isEmpty()) {
+					return Optional.ofNullable(attrVal.get(0).getAsString());
+				}
+			} else if (keycloakConfiguration.isUseUsernameAsCamundaUserId()) {
+				return Optional.ofNullable(getJsonString(jsonObject, "username"));
+			} else {
+				return Optional.ofNullable(getJsonString(jsonObject, "id"));
+			}
+		}
+		return Optional.empty();
+	}
+
 }
