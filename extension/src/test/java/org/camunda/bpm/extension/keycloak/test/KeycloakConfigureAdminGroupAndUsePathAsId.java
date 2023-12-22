@@ -26,7 +26,8 @@ public class KeycloakConfigureAdminGroupAndUsePathAsId extends AbstractKeycloakI
 	    return new TestSetup(new TestSuite(KeycloakConfigureAdminGroupAndUsePathAsId.class)) {
 
 	    	// @BeforeClass
-	        protected void setUp() throws Exception {
+	        @Override
+			protected void setUp() throws Exception {
 	    		ProcessEngineConfigurationImpl config = (ProcessEngineConfigurationImpl) ProcessEngineConfiguration
 	    				.createProcessEngineConfigurationFromResource("camunda.configureAdminGroupAndUsePathAsId.cfg.xml");
 	    		configureKeycloakIdentityProviderPlugin(config);
@@ -34,7 +35,8 @@ public class KeycloakConfigureAdminGroupAndUsePathAsId extends AbstractKeycloakI
 	        }
 	        
 	        // @AfterClass
-	        protected void tearDown() throws Exception {
+	        @Override
+			protected void tearDown() throws Exception {
 	    		PluggableProcessEngineTestCase.cachedProcessEngine.close();
 	    		PluggableProcessEngineTestCase.cachedProcessEngine = null;
 	        }
@@ -81,7 +83,7 @@ public class KeycloakConfigureAdminGroupAndUsePathAsId extends AbstractKeycloakI
 		// query groups
 		Group group = processEngine.getIdentityService().createGroupQuery().groupId(adminGroupId).singleResult();
 		assertNotNull(group);
-		assertEquals("root/child1/subchild1", group.getId());
+		assertEquals("root ¦ child1 ¦ subchild1", group.getId());
 		assertEquals("subchild1", group.getName());
 		
 		// query groups using group member

@@ -57,11 +57,11 @@ public class KeycloakUseGroupPathdAsGroupIdQueryTest extends AbstractKeycloakIde
 	}
 
 	public void testFilterByChildGroupId() {
-		Group group = identityService.createGroupQuery().groupId("root/child1").singleResult();
+		Group group = identityService.createGroupQuery().groupId("root ¦ child1").singleResult();
 		assertNotNull(group);
 
 		// validate result
-		assertEquals("root/child1", group.getId());
+		assertEquals("root ¦ child1", group.getId());
 		assertEquals("child1", group.getName());
 	}
 
@@ -75,7 +75,7 @@ public class KeycloakUseGroupPathdAsGroupIdQueryTest extends AbstractKeycloakIde
 		assertEquals(2, groups.size());
 		
 		for (Group group : groups) {
-			if (!group.getId().equals("root/child1/subchild1") && !group.getId().equals("root/child2")) {
+			if (!group.getId().equals("root ¦ child1 ¦ subchild1") && !group.getId().equals("root ¦ child2")) {
 				fail();
 			}
 		}
@@ -108,12 +108,12 @@ public class KeycloakUseGroupPathdAsGroupIdQueryTest extends AbstractKeycloakIde
 
 	public void testFilterByChildGroupIdIn() {
 		List<Group> groups = identityService.createGroupQuery()
-				.groupIdIn("root/child1/subchild1", "root/child2")
+				.groupIdIn("root ¦ child1 ¦ subchild1", "root ¦ child2")
 				.list();
 
 		assertEquals(2, groups.size());
 		for (Group group : groups) {
-			if (!group.getId().equals("root/child1/subchild1") && !group.getId().equals("root/child2")) {
+			if (!group.getId().equals("root ¦ child1 ¦ subchild1") && !group.getId().equals("root ¦ child2")) {
 				fail();
 			}
 		}

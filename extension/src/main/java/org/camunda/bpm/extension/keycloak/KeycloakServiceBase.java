@@ -47,6 +47,9 @@ import com.google.gson.JsonParser;
  */
 public abstract class KeycloakServiceBase {
 
+	public static final String GROUP_PATH_DELIMITER = " ¦ ";
+	public static final int GROUP_PATH_DELIMITER_LENGTH = GROUP_PATH_DELIMITER.length();
+
 	protected KeycloakConfiguration keycloakConfiguration;
 	protected KeycloakRestTemplate restTemplate;
 	protected KeycloakContextProvider keycloakContextProvider;
@@ -124,7 +127,7 @@ public abstract class KeycloakServiceBase {
 		if (keycloakConfiguration.isUseGroupPathAsCamundaGroupId()) {
 			String tenantGroupName = keycloakConfiguration.getTenantRootGroupName();
 			String keycloakName = StringUtils.hasLength(tenantGroupName) ? tenantGroupName + "/" + groupId : groupId;
-			groupSearch = "/group-by-path/" + keycloakName;
+			groupSearch = "/group-by-path/" + keycloakName.replace(GROUP_PATH_DELIMITER, "/");
 		} else {
 			return groupId;
 		}

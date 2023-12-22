@@ -73,7 +73,8 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 				ResponseEntity<String> response = restTemplate.exchange(
 						keycloakConfiguration.getKeycloakAdminUrl() + "/group-by-path/" + configuredAdminGroupName, HttpMethod.GET, String.class);
 				if (keycloakConfiguration.isUseGroupPathAsCamundaGroupId()) {
-					return parseAsJsonObjectAndGetMemberAsString(response.getBody(), "path").substring(1); // remove trailing '/'
+					return parseAsJsonObjectAndGetMemberAsString(response.getBody(), "path").substring(1).replace("/",
+							GROUP_PATH_DELIMITER); // remove trailing '/'
 				}
 				return parseAsJsonObjectAndGetMemberAsString(response.getBody(), "id");
 			} catch (RestClientException | JsonException ex) {
@@ -95,7 +96,9 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 				}
 				if (groups.size() == 1) {
 					if (keycloakConfiguration.isUseGroupPathAsCamundaGroupId()) {
-						return getJsonString(getJsonObjectAtIndex(groups, 0), "path").substring(1); // remove trailing '/'
+						return getJsonString(getJsonObjectAtIndex(groups, 0), "path").substring(1).replace("/", GROUP_PATH_DELIMITER); // remove
+																																		// trailing
+																																		// '/'
 					}
 					return getJsonString(getJsonObjectAtIndex(groups, 0), "id");
 				} else if (!groups.isEmpty()) {
@@ -344,7 +347,7 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 			if (keycloakConfiguration.isUseGroupPathAsCamundaGroupId()) {
 				String tenantGroupName = keycloakConfiguration.getTenantRootGroupName();
 				String keycloakName = StringUtils.hasLength(tenantGroupName) ? tenantGroupName + "/" + groupId : groupId;
-				groupSearch = "/group-by-path/" + keycloakName;
+				groupSearch = "/group-by-path/" + keycloakName.replace(GROUP_PATH_DELIMITER, "/");
 			} else {
 				groupSearch = "/groups/" + groupId;
 			}
@@ -379,9 +382,9 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 	private GroupEntity transformGroup(JsonObject result) throws JsonException {
 		GroupEntity group = new GroupEntity();
 		if (keycloakConfiguration.isUseGroupPathAsCamundaGroupId()) {
-			String tempId = getJsonString(result, "path").substring(1); // remove trailing '/'
-			String id = StringUtils.startsWithIgnoreCase(tempId, keycloakConfiguration.getTenantRootGroupName() + "/")
-					? tempId.substring(tempId.indexOf("/") + 1)
+			String tempId = getJsonString(result, "path").substring(1).replace("/", GROUP_PATH_DELIMITER); // remove trailing '/'
+			String id = StringUtils.startsWithIgnoreCase(tempId, keycloakConfiguration.getTenantRootGroupName() + GROUP_PATH_DELIMITER)
+					? tempId.substring(tempId.indexOf(GROUP_PATH_DELIMITER) + GROUP_PATH_DELIMITER_LENGTH)
 					: tempId;
 			group.setId(id);
 		} else {
@@ -404,11 +407,11 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 	 */
 	private boolean isSystemGroup(JsonObject result) throws JsonException {
 		String name = getJsonString(result, "name");
-		String path = getJsonString(result, "path");
+		String path = getJsonString(result, "path").replace("/", GROUP_PATH_DELIMITER);
 		String tenantRoot = keycloakConfiguration.getTenantRootGroupName();
 		if (Groups.CAMUNDA_ADMIN.equals(name) || name.equals(keycloakConfiguration.getAdministratorGroupName())
-				|| (StringUtils.hasLength(tenantRoot) && (tenantRoot.equalsIgnoreCase(path.substring(1)))
-						|| (tenantRoot + "/" + name).equalsIgnoreCase(path.substring(1)))) {
+				|| (StringUtils.hasLength(tenantRoot) && (tenantRoot.equalsIgnoreCase(path.substring(GROUP_PATH_DELIMITER_LENGTH)))
+						|| (tenantRoot + GROUP_PATH_DELIMITER + name).equalsIgnoreCase(path.substring(GROUP_PATH_DELIMITER_LENGTH)))) {
 			return true;
 		}
 		try {
