@@ -388,7 +388,9 @@ public abstract class KeycloakServiceBase {
 			jsonElement = jsonArray.get(0);
 		}
 		if (jsonElement instanceof JsonObject jsonObject) {
-			if (keycloakConfiguration.isUseEmailAsCamundaUserId()) {
+			if (keycloakConfiguration.isUseUsernameAsCamundaUserId()) {
+				return Optional.ofNullable(getJsonString(jsonObject, "username"));
+			} else if (keycloakConfiguration.isUseEmailAsCamundaUserId()) {
 				return Optional.ofNullable(getJsonString(jsonObject, "email"));
 			} else if (keycloakConfiguration.isUseCustomAttributeAsCamundaUserId()) {
 				String attr = keycloakConfiguration.getUserIdCustomAttribute();
@@ -400,8 +402,6 @@ public abstract class KeycloakServiceBase {
 				if (attrVal != null && !attrVal.isEmpty()) {
 					return Optional.ofNullable(attrVal.get(0).getAsString());
 				}
-			} else if (keycloakConfiguration.isUseUsernameAsCamundaUserId()) {
-				return Optional.ofNullable(getJsonString(jsonObject, "username"));
 			} else {
 				return Optional.ofNullable(getJsonString(jsonObject, "id"));
 			}
