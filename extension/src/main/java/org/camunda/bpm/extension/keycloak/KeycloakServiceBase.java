@@ -144,10 +144,15 @@ public abstract class KeycloakServiceBase {
 		if (keycloakConfiguration.isUseGroupPathAsCamundaGroupId()) {
 			String tenantGroupName = keycloakConfiguration.getTenantRootGroupName();
 			return StringUtils.hasLength(tenantGroupName) && !tenantGroupName.equals(groupId)
-					&& !keycloakConfiguration.administratorGroupName.equals(groupId) ? tenantGroupName + "/" + groupId : groupId;
+					&& !isAdminGroupOrSubgroup(groupId) ? tenantGroupName + "/" + groupId : groupId;
 		} else {
 			return groupId;
 		}
+	}
+
+	private boolean isAdminGroupOrSubgroup(String pathGroupId) {
+		String adminGroupName = keycloakConfiguration.administratorGroupName;
+		return adminGroupName.equals(pathGroupId) || StringUtils.startsWithIgnoreCase(pathGroupId, adminGroupName + GROUP_PATH_DELIMITER);
 	}
 
 	/**

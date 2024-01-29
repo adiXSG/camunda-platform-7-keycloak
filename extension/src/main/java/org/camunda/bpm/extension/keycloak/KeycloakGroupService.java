@@ -409,6 +409,8 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 		String path = getJsonString(result, "path").replace("/", GROUP_PATH_DELIMITER);
 		String tenantRoot = keycloakConfiguration.getTenantRootGroupName();
 		if (Groups.CAMUNDA_ADMIN.equals(name) || name.equals(keycloakConfiguration.getAdministratorGroupName())
+				|| StringUtils.startsWithIgnoreCase(path.substring(GROUP_PATH_DELIMITER_LENGTH),
+						keycloakConfiguration.getAdministratorGroupName() + GROUP_PATH_DELIMITER)
 				|| (StringUtils.hasLength(tenantRoot) && (tenantRoot.equalsIgnoreCase(path.substring(GROUP_PATH_DELIMITER_LENGTH)))
 						|| (tenantRoot + GROUP_PATH_DELIMITER + name).equalsIgnoreCase(path.substring(GROUP_PATH_DELIMITER_LENGTH)))) {
 			return true;
