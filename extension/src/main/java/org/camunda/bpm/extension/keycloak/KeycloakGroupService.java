@@ -345,8 +345,7 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 		try {
 			String groupSearch;
 			if (keycloakConfiguration.isUseGroupPathAsCamundaGroupId()) {
-				String tenantGroupName = keycloakConfiguration.getTenantRootGroupName();
-				String keycloakName = StringUtils.hasLength(tenantGroupName) ? tenantGroupName + "/" + groupId : groupId;
+				String keycloakName = prefixKeycloakGroupPath(groupId);
 				groupSearch = "/group-by-path/" + keycloakName.replace(GROUP_PATH_DELIMITER, "/");
 			} else {
 				groupSearch = "/groups/" + groupId;

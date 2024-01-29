@@ -125,8 +125,7 @@ public abstract class KeycloakServiceBase {
 	protected String getKeycloakGroupID(String groupId) throws KeycloakGroupNotFoundException, RestClientException {
 		String groupSearch;
 		if (keycloakConfiguration.isUseGroupPathAsCamundaGroupId()) {
-			String tenantGroupName = keycloakConfiguration.getTenantRootGroupName();
-			String keycloakName = StringUtils.hasLength(tenantGroupName) ? tenantGroupName + "/" + groupId : groupId;
+			String keycloakName = prefixKeycloakGroupPath(groupId);
 			groupSearch = "/group-by-path/" + keycloakName.replace(GROUP_PATH_DELIMITER, "/");
 		} else {
 			return groupId;
@@ -141,6 +140,16 @@ public abstract class KeycloakServiceBase {
 		}
 	}
 	
+	protected String prefixKeycloakGroupPath(String groupId) {
+		if (keycloakConfiguration.isUseGroupPathAsCamundaGroupId()) {
+			String tenantGroupName = keycloakConfiguration.getTenantRootGroupName();
+			return StringUtils.hasLength(tenantGroupName) && !tenantGroupName.equals(groupId)
+					&& !keycloakConfiguration.administratorGroupName.equals(groupId) ? tenantGroupName + "/" + groupId : groupId;
+		} else {
+			return groupId;
+		}
+	}
+
 	/**
 	 * Gets the Keycloak internal ID of a tenant group.
 	 * 
