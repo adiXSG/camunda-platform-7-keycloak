@@ -218,9 +218,10 @@ public class KeycloakTenantService extends KeycloakServiceBase {
 	private boolean isGroupIdEquals(String groupId, JsonObject group) throws JsonException {
 		if (keycloakConfiguration.isUseGroupPathAsCamundaGroupId()) {
 			String path = getJsonString(group, "path");
-			if (StringUtils.hasLength(path) && path.startsWith("/" + keycloakConfiguration.getTenantRootGroupName() + "/")) {
+			String tenantRoot = getContextRoot() + keycloakConfiguration.getTenantRootGroupName();
+			if (StringUtils.hasLength(path) && path.startsWith("/" + tenantRoot + "/")) {
 				String candidateGroupId = path
-						.substring(keycloakConfiguration.getTenantRootGroupName().length() + 2)
+						.substring(tenantRoot.length() + 2)
 						.replace("/",
 						GROUP_PATH_DELIMITER);
 				return candidateGroupId.equals(groupId);
@@ -337,7 +338,7 @@ public class KeycloakTenantService extends KeycloakServiceBase {
 			String tenantRootGroupName = keycloakConfiguration.getTenantRootGroupName();
 			String tenantSearch;
 			if (StringUtils.hasLength(tenantRootGroupName) && keycloakConfiguration.isUseGroupNameAsTenantId()) {
-				String keycloakName = tenantRootGroupName + "/" + tenantId;
+				String keycloakName = getContextRoot() + tenantRootGroupName + "/" + tenantId;
 				tenantSearch = "/group-by-path/" + keycloakName;
 			} else {
 				tenantSearch = "/groups/" + tenantId;
@@ -369,9 +370,8 @@ public class KeycloakTenantService extends KeycloakServiceBase {
 		TenantEntity tenant = new TenantEntity();
 
 		if (keycloakConfiguration.isUseGroupNameAsTenantId()) {
-			String temp = getJsonString(result, "path");
+			String temp = removeStart(getJsonString(result, "path"), "/" + getContextRoot());
 			tenant.setId(temp.substring(temp.indexOf("/", 1) + 1).replace("/", GROUP_PATH_DELIMITER)); // remove trailing '/'
-
 		} else {
 			tenant.setId(getJsonString(result, "id"));
 		}

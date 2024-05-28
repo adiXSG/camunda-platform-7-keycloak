@@ -122,7 +122,7 @@ public abstract class KeycloakServiceBase {
 	 * @throws KeycloakGroupNotFoundException in case the group cannot be found
 	 * @throws RestClientException in case of technical errors
 	 */
-	protected String getKeycloakGroupID(String groupId) throws KeycloakGroupNotFoundException, RestClientException {
+	protected String getKeycloakGroupIdOfTenant(String groupId) throws KeycloakGroupNotFoundException, RestClientException {
 		String groupSearch;
 		if (keycloakConfiguration.isUseGroupPathAsCamundaGroupId()) {
 			String keycloakName = prefixKeycloakGroupPath(groupId);
@@ -140,11 +140,41 @@ public abstract class KeycloakServiceBase {
 		}
 	}
 	
+	/**
+	 * Gets the Keycloak internal ID of a group.
+	 * 
+	 * @param groupId
+	 *            the userId as sent by the client
+	 * @return the Keycloak internal ID
+	 * @throws KeycloakGroupNotFoundException
+	 *             in case the group cannot be found
+	 * @throws RestClientException
+	 *             in case of technical errors
+	 */
+	protected String getKeycloakGroupId(String groupId) throws KeycloakGroupNotFoundException, RestClientException {
+		String groupSearch;
+		if (keycloakConfiguration.isUseGroupPathAsCamundaGroupId()) {
+			groupSearch = "/group-by-path/" + groupId.replace(GROUP_PATH_DELIMITER, "/");
+		} else {
+			return groupId;
+		}
+
+		try {
+			ResponseEntity<String> response = restTemplate.exchange(keycloakConfiguration.getKeycloakAdminUrl() + groupSearch,
+					HttpMethod.GET, String.class);
+			return parseAsJsonObjectAndGetMemberAsString(response.getBody(), "id");
+		} catch (HttpClientErrorException.NotFound | JsonException je) {
+			throw new KeycloakGroupNotFoundException(groupId + " not found - path unknown", je);
+		}
+	}
+
 	protected String prefixKeycloakGroupPath(String groupId) {
 		if (keycloakConfiguration.isUseGroupPathAsCamundaGroupId()) {
 			String tenantGroupName = keycloakConfiguration.getTenantRootGroupName();
-			return StringUtils.hasLength(tenantGroupName) && !tenantGroupName.equals(groupId)
-					&& !isAdminGroupOrSubgroup(groupId) ? tenantGroupName + "/" + groupId : groupId;
+			return getContextRoot()
+					+ (StringUtils.hasLength(tenantGroupName) && !tenantGroupName.equals(groupId) && !isAdminGroupOrSubgroup(groupId)
+							? tenantGroupName + "/" + groupId
+							: groupId);
 		} else {
 			return groupId;
 		}
@@ -170,7 +200,7 @@ public abstract class KeycloakServiceBase {
 		String groupSearch;
 		if (keycloakConfiguration.isUseGroupNameAsTenantId()) {
 			String tenantGroupName = keycloakConfiguration.getTenantRootGroupName();
-			String keycloakName = StringUtils.hasLength(tenantGroupName) ? tenantGroupName + "/" + tenantId : tenantId;
+			String keycloakName = getContextRoot() + (StringUtils.hasLength(tenantGroupName) ? tenantGroupName + "/" + tenantId : tenantId);
 			groupSearch = "/group-by-path/" + keycloakName;
 		} else {
 			return tenantId;
@@ -343,10 +373,24 @@ public abstract class KeycloakServiceBase {
 
 	private static boolean isTenantGroup(KeycloakConfiguration config, JsonObject result) throws JsonException {
 		String tenantRootGroupName = config.getTenantRootGroupName();
-		if (tenantRootGroupName == null || tenantRootGroupName.length() == 0)
+		if (!StringUtils.hasLength(tenantRootGroupName))
 			return false;
+		String root = getContextRoot(config);
 		String path = getJsonString(result, "path");
-		return StringUtils.startsWithIgnoreCase(path, "/" + tenantRootGroupName + "/") && path.split("/").length == 3;
+		return StringUtils.startsWithIgnoreCase(path, "/" + root + tenantRootGroupName + "/")
+				&& removeStart(path, "/" + root).split("/").length == 2;
+	}
+
+	protected String getContextRoot() {
+		return getContextRoot(keycloakConfiguration);
+	}
+
+	protected static String getContextRoot(KeycloakConfiguration config) {
+		if (StringUtils.hasLength(config.getContextRootGroupName())) {
+			return config.getContextRootGroupName() + "/";
+		} else {
+			return "";
+		}
 	}
 
 	protected <T> List<T> commonElements(Collection<Set<T>> collection) {
@@ -421,6 +465,74 @@ public abstract class KeycloakServiceBase {
 			}
 		}
 		return Optional.empty();
+	}
+
+	protected String removeRootPath(String groupPath) {
+		if (!StringUtils.hasLength(groupPath))
+			return groupPath;
+
+		String root = appendIfMissing(prependIfMissing(keycloakConfiguration.getContextRootGroupName(), "/"), "/");
+
+		if (groupPath.startsWith(root)) {
+			return groupPath.substring(root.length());
+		} else if (groupPath.startsWith("/")) {
+			return groupPath.substring(1);
+		} else {
+			return groupPath;
+		}
+
+	}
+
+	protected static String replaceGroupPathDelimiterWithSlash(String groupName) {
+		if (StringUtils.hasLength(groupName))
+			return groupName.replace(GROUP_PATH_DELIMITER, "/");
+		return groupName;
+	}
+
+	protected static String replaceSlashWithGroupPathDelimiter(String groupName) {
+		if (StringUtils.hasLength(groupName))
+			return groupName.replace("/", GROUP_PATH_DELIMITER);
+		return groupName;
+	}
+
+	protected static String prependIfMissing(String value, String prefix) {
+		if (!StringUtils.hasLength(prefix)) {
+			return value;
+		} else if (StringUtils.hasLength(value) && !value.startsWith(prefix)) {
+			return prefix + value;
+		} else if (!StringUtils.hasLength(value)) {
+			return prefix;
+		} else {
+			return value;
+		}
+	}
+
+	protected static String appendIfMissing(String value, String suffix) {
+		if (!StringUtils.hasLength(suffix)) {
+			return value;
+		} else if (StringUtils.hasLength(value) && !value.endsWith(suffix)) {
+			return value + suffix;
+		} else if (!StringUtils.hasLength(value)) {
+			return suffix;
+		} else {
+			return value;
+		}
+	}
+
+	protected static String removeEnd(String value, String suffix) {
+		if (!StringUtils.hasLength(value) || !StringUtils.hasLength(suffix) || !value.endsWith(suffix)) {
+			return value;
+		} else {
+			return value.substring(0, suffix.length());
+		}
+	}
+
+	protected static String removeStart(String value, String suffix) {
+		if (!StringUtils.hasLength(value) || !StringUtils.hasLength(suffix) || !value.startsWith(suffix)) {
+			return value;
+		} else {
+			return value.substring(suffix.length());
+		}
 	}
 
 }

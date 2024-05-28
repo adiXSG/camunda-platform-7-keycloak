@@ -145,11 +145,11 @@ public class KeycloakUserService extends KeycloakServiceBase {
 		List<String> groupsToCheck;
 		try {
 			if (StringUtils.hasLength(tenantId) && StringUtils.hasLength(groupId)) {
-				groupsToCheck = Arrays.asList(getKeycloakTenantID(tenantId), getKeycloakGroupID(groupId));
+				groupsToCheck = Arrays.asList(getKeycloakTenantID(tenantId), getKeycloakGroupIdOfTenant(groupId));
 			} else if (StringUtils.hasLength(tenantId)) {
 				groupsToCheck = Collections.singletonList(getKeycloakTenantID(tenantId));
 			} else if (StringUtils.hasLength(groupId)) {
-				groupsToCheck = Collections.singletonList(getKeycloakGroupID(groupId));
+				groupsToCheck = Collections.singletonList(getKeycloakGroupIdOfTenant(groupId));
 			} else {
 				groupsToCheck = Collections.emptyList();
 			}
@@ -237,12 +237,8 @@ public class KeycloakUserService extends KeycloakServiceBase {
 
 			JsonArray searchResult = parseAsJsonArray(response.getBody());
 			for (int i = 0; i < searchResult.size(); i++) {
-				JsonObject keycloakUser = getJsonObjectAtIndex(searchResult, i);
-
-				Optional<String> opt = extractUserName(keycloakUser);
-
-				if (opt.isPresent())
-					userList.add(transformUser(keycloakUser));
+				final JsonObject keycloakUser = getJsonObjectAtIndex(searchResult, i);
+				extractUserName(keycloakUser).ifPresent(s -> userList.add(transformUser(keycloakUser)));
 			}
 
 		} catch (RestClientException | JsonException rce) {

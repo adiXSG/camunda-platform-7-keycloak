@@ -63,6 +63,9 @@ public class KeycloakConfiguration {
 	/** The name of the root group for tenants. */
 	protected String tenantRootGroupName;
 
+	/** The name of the root group for ALL. */
+	protected String contextRootGroupName;
+
 	/** The ID of the administrator user.
 	 * 
 	 * If this ID is set to a non-null and non-empty value,
@@ -285,6 +288,21 @@ public class KeycloakConfiguration {
 	 */
 	public void setTenantRootGroupName(String tenantRootGroupName) {
 		this.tenantRootGroupName = tenantRootGroupName;
+	}
+
+	/**
+	 * @return the getContextRootGroupName
+	 */
+	public String getContextRootGroupName() {
+		return contextRootGroupName;
+	}
+
+	/**
+	 * @param contextRootGroupName
+	 *            the rootGroupName to set
+	 */
+	public void setContextRootGroupName(String contextRootGroupName) {
+		this.contextRootGroupName = contextRootGroupName;
 	}
 
 	/**

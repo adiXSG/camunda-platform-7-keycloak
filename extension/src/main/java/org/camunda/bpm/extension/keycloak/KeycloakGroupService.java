@@ -17,7 +17,9 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -71,10 +73,12 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 			// check whether configured admin group can be resolved as path
 			try {
 				ResponseEntity<String> response = restTemplate.exchange(
-						keycloakConfiguration.getKeycloakAdminUrl() + "/group-by-path/" + configuredAdminGroupName, HttpMethod.GET, String.class);
+						keycloakConfiguration.getKeycloakAdminUrl() + "/group-by-path/" + getContextRoot()
+								+ configuredAdminGroupName,
+						HttpMethod.GET, String.class);
 				if (keycloakConfiguration.isUseGroupPathAsCamundaGroupId()) {
-					return parseAsJsonObjectAndGetMemberAsString(response.getBody(), "path").substring(1).replace("/",
-							GROUP_PATH_DELIMITER); // remove trailing '/'
+					return replaceSlashWithGroupPathDelimiter(
+							removeRootPath(parseAsJsonObjectAndGetMemberAsString(response.getBody(), "path")));
 				}
 				return parseAsJsonObjectAndGetMemberAsString(response.getBody(), "id");
 			} catch (RestClientException | JsonException ex) {
@@ -96,9 +100,7 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 				}
 				if (groups.size() == 1) {
 					if (keycloakConfiguration.isUseGroupPathAsCamundaGroupId()) {
-						return getJsonString(getJsonObjectAtIndex(groups, 0), "path").substring(1).replace("/", GROUP_PATH_DELIMITER); // remove
-																																		// trailing
-																																		// '/'
+						return replaceSlashWithGroupPathDelimiter(removeRootPath(getJsonString(getJsonObjectAtIndex(groups, 0), "path")));
 					}
 					return getJsonString(getJsonObjectAtIndex(groups, 0), "id");
 				} else if (!groups.isEmpty()) {
@@ -147,7 +149,7 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 
 			JsonArray searchResult = parseAsJsonArray(response.getBody());
 			for (int i = 0; i < searchResult.size(); i++) {
-				groupList.add(transformGroup(getJsonObjectAtIndex(searchResult, i)));
+				transformGroup(getJsonObjectAtIndex(searchResult, i)).ifPresent(groupList::add);
 			}
 
 		} catch (HttpClientErrorException hcee) {
@@ -210,7 +212,21 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 			}
 
 			if (!searchResult.isEmpty()) {
-				final Set<String> ids = tenantGroupIds;
+
+				Set<String> validIds = null;
+				try {
+					if (StringUtils.hasLength(keycloakConfiguration.getContextRootGroupName())) {
+						String keycloakRootId = getKeycloakGroupId(
+								removeStart(removeEnd(keycloakConfiguration.getContextRootGroupName(), "/"), "/"));
+						validIds = collectSubGroupsIds(keycloakRootId);
+					}
+				} catch (KeycloakGroupNotFoundException e) {
+					// ignore
+				}
+
+				final Set<String> ids = validIds != null && tenantGroupIds != null
+						? tenantGroupIds.stream().filter(validIds::contains).collect(Collectors.toSet())
+						: validIds;
 				return StreamSupport.stream(searchResult.spliterator(), false)
 						//
 						.filter(JsonObject.class::isInstance)
@@ -222,6 +238,10 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 						.filter(Objects::nonNull)
 						//
 						.map(this::transformGroupQuietly)
+						//
+						.filter(Optional::isPresent)
+						//
+						.map(Optional::get)
 						//
 						.toList();
 			} else {
@@ -266,7 +286,7 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 	 * @param resultLogger the log accumulator
 	 * @return a boolean indicating if the group is valid for current query
 	 */
-	private boolean isValid(KeycloakGroupQuery query, Group group, StringBuilder resultLogger) {
+	protected boolean isValid(KeycloakGroupQuery query, Group group, StringBuilder resultLogger) {
 		// client side check of further query filters
 		if (!matches(query.getId(), group.getId())) return false;
 		if (!matches(query.getIds(), group.getId())) return false;
@@ -293,16 +313,18 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 	 * @param query the group query
 	 * @return request query
 	 */
-	private String createGroupSearchFilter(CacheableKeycloakGroupQuery query) {
+	protected String createGroupSearchFilter(CacheableKeycloakGroupQuery query) {
 		StringBuilder filter = new StringBuilder();
+
 		if (StringUtils.hasLength(query.getName())) {
 			addArgument(filter, "search", query.getName());
 		}
 		if (StringUtils.hasLength(query.getNameLike())) {
 			addArgument(filter, "search", query.getNameLike().replaceAll("[%,\\*]", ""));
 		}
+
 		// addArgument(filter, "max", getMaxQueryResultSize());
-		if (filter.length() > 0) {
+		if (!filter.isEmpty()) {
 			filter.insert(0, "?");
 			String result = filter.toString();
 			KeycloakPluginLogger.INSTANCE.groupQueryFilter(result);
@@ -318,7 +340,7 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 	 * @return flattened list of all groups in this hierarchy
 	 * @throws JsonException in case of errors
 	 */
-	private JsonArray flattenSubGroups(JsonArray groups, JsonArray result) throws JsonException {
+	protected JsonArray flattenSubGroups(JsonArray groups, JsonArray result) throws JsonException {
 		if (groups == null) return result;
 		for (int i = 0; i < groups.size(); i++) {
 			JsonObject group = getJsonObjectAtIndex(groups, i);
@@ -341,12 +363,12 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 	 * @return response consisting of a list containing the one group
 	 * @throws RestClientException
 	 */
-	private ResponseEntity<String> requestGroupById(String groupId) throws RestClientException {
+	protected ResponseEntity<String> requestGroupById(String groupId) throws RestClientException {
 		try {
 			String groupSearch;
 			if (keycloakConfiguration.isUseGroupPathAsCamundaGroupId()) {
 				String keycloakName = prefixKeycloakGroupPath(groupId);
-				groupSearch = "/group-by-path/" + keycloakName.replace(GROUP_PATH_DELIMITER, "/");
+				groupSearch = "/group-by-path/" + replaceGroupPathDelimiterWithSlash(keycloakName);
 			} else {
 				groupSearch = "/groups/" + groupId;
 			}
@@ -364,24 +386,31 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 		}
 	}
 
-	private Group transformGroupQuietly(JsonObject result) {
+	protected Optional<Group> transformGroupQuietly(JsonObject result) {
 		try {
 			return transformGroup(result);
 		} catch (JsonException e) {
-			return null;
+			return Optional.empty();
 		}
 	}
 
 	/**
 	 * Maps a Keycloak JSON result to a Group object
-	 * @param result the Keycloak JSON result
-	 * @return the Group object
-	 * @throws JsonException in case of errors
+	 * 
+	 * @param result
+	 *            the Keycloak JSON result
+	 * @return the Group object as Optional or an empty Optional if the group is outside of root scope
+	 * @throws JsonException
+	 *             in case of errors
 	 */
-	private GroupEntity transformGroup(JsonObject result) throws JsonException {
+	protected Optional<Group> transformGroup(JsonObject result) throws JsonException {
 		GroupEntity group = new GroupEntity();
 		if (keycloakConfiguration.isUseGroupPathAsCamundaGroupId()) {
-			String tempId = getJsonString(result, "path").substring(1).replace("/", GROUP_PATH_DELIMITER); // remove trailing '/'
+			String path = getJsonString(result, "path");
+			if (StringUtils.hasLength(path) && !path.startsWith("/" + getContextRoot()) || isTenantGroup(result)) {
+				return Optional.empty();
+			}
+			String tempId = replaceSlashWithGroupPathDelimiter(removeRootPath(path));
 			String id = StringUtils.startsWithIgnoreCase(tempId, keycloakConfiguration.getTenantRootGroupName() + GROUP_PATH_DELIMITER)
 					? tempId.substring(tempId.indexOf(GROUP_PATH_DELIMITER) + GROUP_PATH_DELIMITER_LENGTH)
 					: tempId;
@@ -395,7 +424,7 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 		} else {
 			group.setType(Groups.GROUP_TYPE_WORKFLOW);
 		}
-		return group;
+		return Optional.of(group);
 	}
 
 	/**
@@ -404,15 +433,15 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 	 * @return {@code true} in case the result is a SYSTEM group.
 	 * @throws JsonException in case of errors
 	 */
-	private boolean isSystemGroup(JsonObject result) throws JsonException {
+	protected boolean isSystemGroup(JsonObject result) throws JsonException {
 		String name = getJsonString(result, "name");
-		String path = getJsonString(result, "path").replace("/", GROUP_PATH_DELIMITER);
-		String tenantRoot = keycloakConfiguration.getTenantRootGroupName();
-		if (Groups.CAMUNDA_ADMIN.equals(name) || name.equals(keycloakConfiguration.getAdministratorGroupName())
-				|| StringUtils.startsWithIgnoreCase(path.substring(GROUP_PATH_DELIMITER_LENGTH),
-						keycloakConfiguration.getAdministratorGroupName() + GROUP_PATH_DELIMITER)
-				|| (StringUtils.hasLength(tenantRoot) && (tenantRoot.equalsIgnoreCase(path.substring(GROUP_PATH_DELIMITER_LENGTH)))
-						|| (tenantRoot + GROUP_PATH_DELIMITER + name).equalsIgnoreCase(path.substring(GROUP_PATH_DELIMITER_LENGTH)))) {
+		String path = replaceSlashWithGroupPathDelimiter(removeRootPath(getJsonString(result, "path")));
+		String tenantRoot = replaceSlashWithGroupPathDelimiter(keycloakConfiguration.getTenantRootGroupName());
+		String adminGroupName = replaceSlashWithGroupPathDelimiter(keycloakConfiguration.getAdministratorGroupName());
+		if (Groups.CAMUNDA_ADMIN.equals(name) || name.equals(adminGroupName)
+				|| StringUtils.startsWithIgnoreCase(path + GROUP_PATH_DELIMITER, adminGroupName + GROUP_PATH_DELIMITER)
+				|| (StringUtils.hasLength(tenantRoot) && (tenantRoot.equalsIgnoreCase(path))
+						|| (tenantRoot + GROUP_PATH_DELIMITER + name).equalsIgnoreCase(path))) {
 			return true;
 		}
 		try {
@@ -431,7 +460,7 @@ public class KeycloakGroupService extends KeycloakServiceBase {
 	/**
 	 * Helper for client side group ordering.
 	 */
-	private static class GroupComparator implements Comparator<Group> {
+	protected static class GroupComparator implements Comparator<Group> {
 		private static final int GROUP_ID = 0;
 		private static final int NAME = 1;
 		private static final int TYPE = 2;
